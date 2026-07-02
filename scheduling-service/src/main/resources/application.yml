@@ -1,0 +1,29 @@
+server:
+  port: 8085
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+
+grpc:
+  client:
+    task-service:
+      address: static://task-service:9090
+      negotiation-type: plaintext
+
+    customer-service:
+      address: static://customer-service:9090
+      negotiation-type: plaintext
+
+    zone-service:
+      address: static://customer-service:9090
+      negotiation-type: plaintext
+
+    routing-service:
+      address: static://routing-service:9090
+      negotiation-type: plaintext
+
+  server:
+    port: 9090
+    security:
+      enabled: false

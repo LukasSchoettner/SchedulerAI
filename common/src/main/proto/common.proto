@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package com.scheduler.common.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.scheduler.common.grpc";
+option java_outer_classname = "CommonProto";
+
+message TaskUpdateResponse {
+  int64 taskId = 1;
+  string updateType = 2; // "rescheduled", "priority-changed", "cancelled"
+  string newDueDate = 3;
+  string newReminderDate = 4;
+  string previousDueDate = 5;
+  string previousReminderDate = 6;
+  string additionalInfo = 7;
+}

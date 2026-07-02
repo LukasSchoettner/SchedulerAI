@@ -1,0 +1,35 @@
+.container {
+  margin: 2rem;
+}
+
+.generateBtn {
+  margin-bottom: 1rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 400px;
+}
+
+.taskList {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.taskItem {
+  border: 1px solid #ddd;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.taskActions {
+  display: flex;
+  gap: 0.5rem;
+}

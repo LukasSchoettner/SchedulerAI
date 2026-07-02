@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package com.scheduler.routing.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.scheduler.routing.grpc";
+option java_outer_classname = "RoutingServiceProto";
+
+// --- Messages ---
+
+message DistanceMatrixRequest {
+  int64 customerId = 1;
+}
+
+message AddressProto {
+  int64 id = 1;
+  string addressLine = 2;
+  double latitude = 3;
+  double longitude = 4;
+  int64 customerId = 5;
+}
+
+message DistanceMatrixProto {
+  repeated AddressProto addresses = 1;
+
+  // 2D matrix: we encode as repeated Row; each Row has repeated values
+  message Row {
+    repeated double value = 1;
+  }
+
+  repeated Row rows = 2;  // rows[i].value[j] => distance from addresses[i] to addresses[j]
+}
+
+// --- Service ---
+
+service RoutingService {
+  rpc GetDistanceMatrix(DistanceMatrixRequest) returns (DistanceMatrixProto);
+}

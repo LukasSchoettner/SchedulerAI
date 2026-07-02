@@ -1,0 +1,49 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-customer:5432/customer_service_db
+    username: postgres
+    password: admin
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update  # Creates tables automatically
+    show-sql: true      # Prints SQL queries in the console
+    properties:
+      hibernate:
+        format_sql: true
+
+  application:
+    name: customer-service
+
+grpc:
+  server:
+    address: 0.0.0.0
+    port: 9090
+    security:
+      enabled: false
+
+custom:
+  verifyStartup: true
+
+#kafka:
+#  bootstrap-servers: localhost:9092  # Adjust if using a different server/port
+#  consumer:
+#    group-id: customer-service-group
+#    auto-offset-reset: earliest
+#  producer:
+#    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#    value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+
+
+logging:
+  level:
+    io.grpc: DEBUG

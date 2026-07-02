@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_package = "com.scheduler.customermanagement.grpc.base";
+option java_outer_classname = "CustomerServiceProto";
+
+// --- Enums ---
+
+// Mirror your commoncode.enums.MembershipLevel
+enum MembershipLevel {
+  BASIC    = 0;
+  PLUS     = 1;
+  PREMIUM  = 2;
+}
+
+// --- Messages ---
+
+message CustomerRequest {
+  int64 id = 1;
+}
+
+message CustomerProto {
+  int64            id               = 1;
+  string           customername     = 2;
+  string           email            = 3;
+  bool             active           = 4;
+  MembershipLevel  membershipLevel  = 5;
+}
+
+message CustomerList {
+  repeated CustomerProto customers = 1;
+}
+
+message CustomerCreate {
+  string           customername     = 1;
+  string           email            = 2;
+  string           password         = 3;
+}
+
+message CustomerUpdate {
+  int64            id               = 1;
+  string           customername     = 2;
+  string           email            = 3;
+  string           password         = 4;
+  bool             active           = 5;
+  MembershipLevel  membershipLevel  = 6;
+}
+
+message CustomerDeleteResponse {
+  bool success = 1;
+}
+
+// --- Service ---
+
+service CustomerService {
+  // fetch one customer by ID
+  rpc GetCustomerById (CustomerRequest) returns (CustomerProto);
+
+  // list all customers
+  rpc ListCustomers   (google.protobuf.Empty) returns (CustomerList);
+
+  // create a new customer
+  rpc CreateCustomer  (CustomerCreate)  returns (CustomerProto);
+
+  // update existing; returns the updated customer
+  rpc UpdateCustomer  (CustomerUpdate)  returns (CustomerProto);
+
+  // delete by ID; returns success flag
+  rpc DeleteCustomer  (CustomerRequest) returns (CustomerDeleteResponse);
+}

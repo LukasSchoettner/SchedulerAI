@@ -1,0 +1,76 @@
+.container {
+  font-family: Arial, sans-serif;
+  width: 100%;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.info {
+  margin-top: 2rem;
+  color: #555;
+}
+
+.noTasks {
+  margin-top: 1rem;
+  color: #555;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+.slot {
+  text-align: right;
+  color: #333;
+}
+
+.backBtn {
+  margin-right: 0.5rem;
+}
+
+.content {
+  width: 70%;
+  margin: 0 auto;
+  padding: 1rem 0;
+}
+
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirmDialog {
+  background: #ffffff;
+  padding: 1.5rem;
+  border-radius: 8px;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.confirmButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

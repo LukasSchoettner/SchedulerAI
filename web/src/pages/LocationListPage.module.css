@@ -1,0 +1,41 @@
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.card {
+    background: #1f2933; /* adjust to your theme */
+    color: #f9fafb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.card h3 {
+    margin-top: 0;
+}
+
+.error {
+    background: #b91c1c;
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+}
+
+.table th,
+.table td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid #374151;
+}
+
+.table th {
+    text-align: left;
+}

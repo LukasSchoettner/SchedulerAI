@@ -1,0 +1,57 @@
+server:
+  port: 8080  # the gateway runs on port 8080
+
+spring:
+#  security:
+#    oauth2:
+#      resourceserver:
+#        jwt:
+#          secret: CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345
+#          expiration-ms: 3600000
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      routes:
+        # customer-service
+        - id: customer-service
+          uri: http://customer-service:8082
+          predicates:
+            - Path=/customers/**
+        # auth
+        - id: auth-route
+          uri: http://customer-service:8082
+          predicates:
+            - Path=/auth/**
+        # tasks
+        - id: task-service
+          uri: http://task-service:8081
+          predicates:
+            - Path=/tasks/**
+        # routing
+        - id: routing-service
+          uri: http://routing-service:8084
+          predicates:
+            - Path=/routing/**
+
+        # scheduling if needed
+        - id: scheduling-service
+          uri: http://scheduling-service:8085
+          predicates:
+            - Path=/scheduling/**
+
+      # Optionally define global or route-specific filters
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.boot.autoconfigure.web: DEBUG
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:3600000}

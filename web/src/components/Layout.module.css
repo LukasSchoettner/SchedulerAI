@@ -1,0 +1,19 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.nav {
+  background: #f4f4f4;
+  padding: 0.5rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.main {
+  flex: 1;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+}

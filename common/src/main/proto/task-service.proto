@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package com.scheduler.taskmanagement.grpc;
+
+import "google/protobuf/timestamp.proto";
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "com.scheduler.taskmanagement.grpc";
+option java_outer_classname = "TaskServiceProto";
+
+// Enums
+enum TaskType {
+  FIXED = 0;
+  FLEXIBLE = 1;
+  PROJECT = 2;
+  // (If you ever re-add "RECURRING" as a separate type, do it here)
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;
+  COMPLETED = 2;
+  DELAYED = 3;
+  // etc.
+}
+
+enum TaskNature {
+  FIXED_ESTIMATE = 0;
+  OPEN_ENDED = 1;
+}
+
+// The main gRPC service
+service TaskService {
+  rpc GetTaskById (TaskRequest) returns (TaskProto);
+  rpc CreateTask (TaskCreate) returns (TaskProto);
+  rpc UpdateTask (TaskProto) returns (TaskProto);
+  rpc DeleteTask (TaskRequest) returns (TaskDeleteResponse);
+  rpc ListTasksForCustomer (ListTasksRequest) returns (stream TaskProto);
+  rpc UpdateTaskStatus(UpdateTaskStatusRequest) returns (TaskProto);
+}
+
+// Subscription service for streaming updates (unchanged)
+service TaskUpdateService {
+  rpc SubscribeToTaskUpdates (TaskSubscriptionRequest) returns (stream com.scheduler.common.grpc.TaskUpdateResponse);
+}
+
+message TaskRequest {
+  int64 id = 1;
+}
+
+// For creating a task (subtype determined by 'type')
+message TaskCreate {
+  string title = 1;
+  TaskType type = 2;
+  int32 priority = 3;
+  google.protobuf.Timestamp dueDate = 4;
+  google.protobuf.Timestamp reminderDate = 5;
+  TaskStatus status = 6;
+
+  // Optional fields for FIXED tasks:
+  google.protobuf.Timestamp startDateTime = 7;
+  google.protobuf.Timestamp endDateTime = 8;
+
+  // Optional fields for FLEXIBLE tasks:
+  int32 estimatedDuration = 9;
+  int32 bufferTime = 10;
+  google.protobuf.Timestamp earliestStartDateTime = 11;
+  google.protobuf.Timestamp latestEndDateTime = 12;
+  TaskNature taskNature = 13;
+  int32 minimalBlockSize = 14;
+  int32 maximalBlockSize = 15;
+  bool canBeSeparated = 16;
+  bool progressive = 17;
+
+  // Common optional fields (like recurrence, category, description, etc.)
+  string recurrencePattern = 18;
+  string description = 19;
+  string category = 20;
+
+  // NEW: optional routing / location data
+  int64 addressId = 21;    // 0 = no linked address
+  string addressText = 22; // human-readable address, optional
+}
+
+// Main representation of a Task (for reading/updating)
+message TaskProto {
+  int64 id = 1;
+  string title = 2;
+  TaskType type = 3;
+  int32 priority = 4;
+  google.protobuf.Timestamp dueDate = 5;
+  google.protobuf.Timestamp reminderDate = 6;
+  TaskStatus status = 7;
+
+  // Subtype-specific fields
+  google.protobuf.Timestamp startDateTime = 8;
+  google.protobuf.Timestamp endDateTime = 9;
+  int32 estimatedDuration = 10;
+  int32 bufferTime = 11;
+  google.protobuf.Timestamp earliestStartDateTime = 12;
+  google.protobuf.Timestamp latestEndDateTime = 13;
+  TaskNature taskNature = 14;
+  int32 minimalBlockSize = 15;
+  int32 maximalBlockSize = 16;
+  bool canBeSeparated = 17;
+  bool progressive = 18;
+
+  // Common optional fields
+  string recurrencePattern = 19;
+  string description = 20;
+  string category = 21;
+
+  // NEW: optional routing / location data
+  int64 addressId = 22;    // 0 = no linked address
+  string addressText = 23; // human-readable address, optional
+}
+
+message TaskSubscriptionRequest {
+  string subscriberId = 1;
+}
+
+message TaskDeleteResponse {
+  bool success = 1;
+}
+
+message ListTasksRequest {
+  int64 customerId = 1;
+}
+
+message UpdateTaskStatusRequest {
+  int64 id = 1;
+  TaskStatus status = 2;
+  int64 customerId = 3;
+}

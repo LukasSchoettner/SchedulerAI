@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+//package com.scheduler.customermanagement.grpc;
+
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_package = "com.scheduler.customermanagement.grpc.base";
+option java_outer_classname = "ZoneServiceProto";
+
+// Request messages
+message ZoneConfigRequest {
+  int64 id = 1; // ID of the ZoneConfiguration
+}
+
+message ZoneConfigCreateRequest {
+  int64 customerId = 1;   // Which customer owns this config
+  string name = 2;        // e.g. "Regular", "Holiday"
+  bool active = 3;        // set active or not
+  string startTime = 4;   // e.g. "08:00"
+  string endTime = 5;     // e.g. "17:00"
+}
+
+// Response or main representation
+message ZoneConfigurationProto {
+  int64 id = 1;
+  string name = 2;
+  bool active = 3;
+  int64 customerId = 4;
+  string startTime = 5;
+  string endTime = 6;
+  repeated ZoneDefinitionProto zones = 7;
+}
+
+message ZoneDefinitionProto {
+  int64 id = 1;
+  string title = 2;
+  int32 dayMask = 3;
+  string startTime = 4;
+  string endTime = 5;
+  repeated string allowedCategories = 6;
+  repeated string excludedCategories = 7;
+  int32 priorityOverrideThreshold = 8;
+  int64 zoneConfigId = 9; // reference to the parent config
+}
+
+// For adding or updating a single zone definition
+message ZoneDefinitionCreateRequest {
+  int64 zoneConfigId = 1;
+  string title = 2;
+  int32 dayMask = 3;
+  string startTime = 4;
+  string endTime = 5;
+  repeated string allowedCategories = 6;
+  repeated string excludedCategories = 7;
+  int32 priorityOverrideThreshold = 8;
+}
+
+// gRPC service definition
+service ZoneService {
+
+  // Create a new ZoneConfiguration for a given customer
+  rpc CreateZoneConfiguration (ZoneConfigCreateRequest) returns (ZoneConfigurationProto);
+
+  // Fetch a ZoneConfiguration by ID
+  rpc GetZoneConfigurationById (ZoneConfigRequest) returns (ZoneConfigurationProto);
+
+  // (Optional) fetch all configs for a customer
+  rpc GetAllZoneConfigsForCustomer (GetAllConfigsRequest) returns (ZoneConfigList);
+
+  // Add a new ZoneDefinition to an existing ZoneConfiguration
+  rpc AddZoneDefinition (ZoneDefinitionCreateRequest) returns (ZoneConfigurationProto);
+
+  // Delete a ZoneConfiguration
+  rpc DeleteZoneConfiguration (ZoneConfigRequest) returns (google.protobuf.Empty);
+
+  // Lookup the active zone config for a customer
+  rpc GetActiveConfigByCustomer (ActiveConfigRequest) returns (ZoneConfigurationProto);
+}
+
+message GetAllConfigsRequest {
+  int64 customerId = 1;
+}
+
+message ZoneConfigList {
+  repeated ZoneConfigurationProto configs = 1;
+}
+
+message ActiveConfigRequest {
+  int64 customerId = 1;
+}

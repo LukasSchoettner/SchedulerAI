@@ -1,0 +1,230 @@
+networks:
+  scheduler-net:
+
+services:
+
+  # ========== Databases ==========
+
+  postgres-task:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: task_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    volumes:
+      - task_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d task_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  postgres-customer:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: customer_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    volumes:
+      - customer_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d customer_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  postgres-notification:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: notification_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notification_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  postgres-routing:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: routing_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    volumes:
+      - routing_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d routing_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+
+  # ========== Services ==========
+
+  task-service:
+    build:
+      context: .
+      dockerfile: task-service/Dockerfile
+    ports:
+      - "8081:8081"
+    expose:
+      - "9090"
+    depends_on:
+      postgres-task:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-task:5432/task_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  customer-service:
+    build:
+      context: .
+      dockerfile: customer-service/Dockerfile
+    ports:
+      - "8082:8082"
+    expose:
+      - "9090"
+    depends_on:
+      postgres-customer:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-customer:5432/customer_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    ports:
+      - "8083:8083"
+    expose:
+      - "9090"
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - task-service
+      - customer-service
+      - notification-service
+      - routing-service
+      - scheduling-service
+    environment:
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  scheduling-service:
+    build:
+      context: .
+      dockerfile: scheduling-service/Dockerfile
+    ports:
+      - "8085:8085"
+    expose:
+      - "9090"
+    depends_on:
+      - task-service
+      - customer-service
+      - routing-service
+    environment:
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  routing-service:
+    build:
+      context: .
+      dockerfile: routing-service/Dockerfile
+    ports:
+      - "8084:8084"
+    expose:
+      - "9090"
+    depends_on:
+      postgres-routing:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-routing:5432/routing_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
+      JWT_EXPIRATION_MS: 3600000
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
+
+volumes:
+  task_db_data:
+  customer_db_data:
+  notification_db_data:
+  routing_db_data:
