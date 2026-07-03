@@ -1,6 +1,8 @@
 package com.scheduler.customermanagement.grpc.impl;
 
 import com.scheduler.commoncode.dto.CustomerDTO;
+import com.scheduler.commoncode.dto.MinimumRequirementDTO;
+import com.scheduler.commoncode.dto.SchedulingPreferenceDTO;
 import com.scheduler.commoncode.enums.MembershipLevel;
 import com.scheduler.customermanagement.grpc.base.*;
 import com.scheduler.customermanagement.services.CustomerService;
@@ -8,6 +10,9 @@ import static com.scheduler.commoncode.grpc.JwtGrpcServerInterceptor.CUSTOMER_ID
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Map;
+import java.util.Collections;
 
 @GrpcService
 public class CustomerServiceGrpcImpl extends CustomerServiceGrpc.CustomerServiceImplBase {
@@ -76,13 +81,67 @@ public class CustomerServiceGrpcImpl extends CustomerServiceGrpc.CustomerService
     }
 
     private CustomerProto buildProto(CustomerDTO dto) {
-        return CustomerProto.newBuilder()
+        CustomerProto.Builder builder = CustomerProto.newBuilder()
                 .setId(dto.getId())
                 .setCustomername(dto.getCustomername())
                 .setEmail(dto.getEmail())
                 .setActive(dto.isActive())
-                .setMembershipLevel(mapEnumToGrpc(dto.getMembershipLevel()))
-                .build();
+                .setMembershipLevel(mapEnumToGrpc(dto.getMembershipLevel()));
+        if (dto.getSchedulingPreference() != null) {
+            builder.setSchedulingPreference(toProto(dto.getSchedulingPreference()));
+        }
+        return builder.build();
+    }
+
+    private SchedulingPreferenceProto toProto(SchedulingPreferenceDTO dto) {
+        SchedulingPreferenceProto.Builder builder = SchedulingPreferenceProto.newBuilder()
+                .setId(dto.getId() != null ? dto.getId() : 0)
+                .setPrimaryPriority(value(dto.getPrimaryPriority()))
+                .addAllCategoryPriorityOrder(dto.getCategoryPriorityOrder() != null ? dto.getCategoryPriorityOrder() : Collections.emptyList())
+                .addAllFixedCommitmentCategories(dto.getFixedCommitmentCategories() != null ? dto.getFixedCommitmentCategories() : Collections.emptySet())
+                .setWorkFlexibility(value(dto.getWorkFlexibility()))
+                .addAllHealthConstraints(dto.getHealthConstraints() != null ? dto.getHealthConstraints() : Collections.emptySet())
+                .setAllocationMode(value(dto.getAllocationMode()))
+                .setPlannedHoursPerDayMinutes(dto.getPlannedHoursPerDayMinutes() != null ? dto.getPlannedHoursPerDayMinutes() : 0)
+                .setFixedTimeBudgetMode(value(dto.getFixedTimeBudgetMode()))
+                .setPauseMinutes(dto.getPauseMinutes() != null ? dto.getPauseMinutes() : 5)
+                .setPauseOverloadBehavior(value(dto.getPauseOverloadBehavior()))
+                .setPlanningFullness(value(dto.getPlanningFullness()))
+                .addAllOverloadReductionOrder(dto.getOverloadReductionOrder() != null ? dto.getOverloadReductionOrder() : Collections.emptyList())
+                .setTemporaryMode(value(dto.getTemporaryMode()))
+                .setTemporaryUntil(dto.getTemporaryUntil() != null ? dto.getTemporaryUntil().toString() : "");
+
+        for (Map.Entry<String, Integer> entry : (dto.getTaskCountTargets() != null ? dto.getTaskCountTargets() : Collections.<String, Integer>emptyMap()).entrySet()) {
+            builder.addTaskCountTargets(CategoryIntTargetProto.newBuilder()
+                    .setCategory(entry.getKey())
+                    .setValue(entry.getValue() != null ? entry.getValue() : 0)
+                    .build());
+        }
+        for (Map.Entry<String, Integer> entry : (dto.getTimeBudgetTargets() != null ? dto.getTimeBudgetTargets() : Collections.<String, Integer>emptyMap()).entrySet()) {
+            builder.addTimeBudgetTargets(CategoryIntTargetProto.newBuilder()
+                    .setCategory(entry.getKey())
+                    .setValue(entry.getValue() != null ? entry.getValue() : 0)
+                    .build());
+        }
+        for (Map.Entry<String, Boolean> entry : (dto.getFixedTimeCountsByCategory() != null ? dto.getFixedTimeCountsByCategory() : Collections.<String, Boolean>emptyMap()).entrySet()) {
+            builder.addFixedTimeCountsByCategory(CategoryBooleanSettingProto.newBuilder()
+                    .setCategory(entry.getKey())
+                    .setValue(Boolean.TRUE.equals(entry.getValue()))
+                    .build());
+        }
+        for (MinimumRequirementDTO minimum : dto.getMinimumRequirements() != null ? dto.getMinimumRequirements() : Collections.<MinimumRequirementDTO>emptyList()) {
+            builder.addMinimumRequirements(MinimumRequirementProto.newBuilder()
+                    .setCategory(value(minimum.getCategory()))
+                    .setType(value(minimum.getType()))
+                    .setAmount(minimum.getAmount() != null ? minimum.getAmount() : 0)
+                    .setPeriod(value(minimum.getPeriod()))
+                    .build());
+        }
+        return builder.build();
+    }
+
+    private String value(String value) {
+        return value != null ? value : "";
     }
 
     private MembershipLevel mapGrpcLevel(com.scheduler.customermanagement.grpc.base.MembershipLevel grpcLevel) {

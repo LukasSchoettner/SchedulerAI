@@ -19,6 +19,15 @@ function FrontPage() {
 
     const navigate = useNavigate();
 
+    const goToNextPage = async () => {
+        try {
+            const status = await api.get('/customers/preferences/onboarding-status');
+            navigate(status.data?.completed ? '/home' : '/onboarding/scheduling');
+        } catch {
+            navigate('/onboarding/scheduling');
+        }
+    };
+
     // Handle LOGIN
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -36,8 +45,7 @@ function FrontPage() {
                 localStorage.setItem('token', response.data.token);
             }
 
-            // On success, go to /home
-            navigate('/home');
+            await goToNextPage();
         } catch (err) {
             console.error('Login failed', err);
             alert('Login failed');
@@ -60,8 +68,7 @@ function FrontPage() {
             // If your back-end returns a token upon registration, store it:
             localStorage.setItem('token', response.data.token);
 
-            // For now, just navigate to /home
-            navigate('/home');
+            navigate('/onboarding/scheduling');
         } catch (err) {
             console.error('Register failed', err);
             alert('Register failed');

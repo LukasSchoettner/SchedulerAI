@@ -82,6 +82,33 @@
   grid-column: span 3;
 }
 
+.categorySelect {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.categorySelect select {
+  min-height: 8rem;
+}
+
+.customCategoryRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.customCategoryRow input {
+  min-width: 0;
+  flex: 1;
+}
+
+.categorySummary {
+  color: #555;
+}
+
+.quickCategoryButton {
+  min-width: 0;
+}
+
 .error {
   color: red;
 }

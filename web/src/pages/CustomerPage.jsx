@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import {
+    canonicalizeCategory,
+    getAllCategories,
+    normalizeCategoryList,
+    saveCustomCategory
+} from '../lib/categories';
 import styles from './CustomerPage.module.css';
 
 
@@ -15,6 +22,7 @@ const DAYS = [
 
 
 function CustomerPage() {
+    const navigate = useNavigate();
     const [mode, setMode] = useState('view'); // 'view' or 'edit'
     const [customer, setCustomer] = useState(null);
     const [formData, setFormData] = useState({
@@ -37,9 +45,11 @@ function CustomerPage() {
     const [defDayMask, setDefDayMask] = useState(127);
     const [defStartTime, setDefStartTime] = useState('08:00');
     const [defEndTime, setDefEndTime] = useState('17:00');
-    const [defAllowed, setDefAllowed] = useState('');
-    const [defExcluded, setDefExcluded] = useState('');
+    const [defAllowed, setDefAllowed] = useState([]);
+    const [defExcluded, setDefExcluded] = useState([]);
     const [defPriority, setDefPriority] = useState('');
+    const [categoryOptions, setCategoryOptions] = useState(getAllCategories());
+    const [customCategory, setCustomCategory] = useState('');
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -125,7 +135,15 @@ function CustomerPage() {
             const resp = await api.get(
                 `/customers/zones/${zoneId}/definitions`,
             );
-            setDefinitions(resp.data);
+            const loadedDefinitions = resp.data || [];
+            setDefinitions(loadedDefinitions);
+            setCategoryOptions(normalizeCategoryList([
+                ...getAllCategories(),
+                ...loadedDefinitions.flatMap(def => [
+                    ...(def.allowedCategories || []),
+                    ...(def.excludedCategories || []),
+                ]),
+            ]));
         } catch (err) {
             console.error('Error fetching definitions:', err);
             setError('Failed to load definitions');
@@ -154,8 +172,8 @@ function CustomerPage() {
                 dayMask: defDayMask,
                 startTime: defStartTime,
                 endTime: defEndTime,
-                allowedCategories: defAllowed.split(',').map(s => s.trim()).filter(s => s),
-                excludedCategories: defExcluded.split(',').map(s => s.trim()).filter(s => s),
+                allowedCategories: normalizeCategoryList(defAllowed),
+                excludedCategories: normalizeCategoryList(defExcluded),
                 priorityOverrideThreshold: defPriority === '' ? null : Number(defPriority),
     });
 
@@ -165,9 +183,10 @@ function CustomerPage() {
         setDefDayMask(127);
         setDefStartTime('08:00');
         setDefEndTime('17:00');
-        setDefAllowed('');
-        setDefExcluded('');
+        setDefAllowed([]);
+        setDefExcluded([]);
         setDefPriority('');
+        setCustomCategory('');
     };
 
     const editDefinition = (def) => {
@@ -176,8 +195,8 @@ function CustomerPage() {
         setDefDayMask(def.dayMask ?? 127);
         setDefStartTime(def.startTime || '08:00');
         setDefEndTime(def.endTime || '17:00');
-        setDefAllowed((def.allowedCategories || []).join(', '));
-        setDefExcluded((def.excludedCategories || []).join(', '));
+        setDefAllowed(normalizeCategoryList(def.allowedCategories || []));
+        setDefExcluded(normalizeCategoryList(def.excludedCategories || []));
         setDefPriority(def.priorityOverrideThreshold ?? '');
     };
 
@@ -198,6 +217,20 @@ function CustomerPage() {
     const toggleDay = (bit) => {
         setDefDayMask(mask => (mask ^ bit)); // toggle bit
     };
+
+    const selectedOptions = (event) =>
+        Array.from(event.target.selectedOptions).map(option => option.value);
+
+    const addCustomCategory = () => {
+        const savedCategory = saveCustomCategory(customCategory);
+        if (!savedCategory) return;
+
+        setCategoryOptions(getAllCategories());
+        setCustomCategory('');
+    };
+
+    const displayCategories = (categories = []) =>
+        normalizeCategoryList(categories).join(', ') || 'Any category';
 
     useEffect(() => {
         fetchData().finally(() => setLoading(false));
@@ -224,6 +257,9 @@ function CustomerPage() {
                     </div>
                     <button onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')}>
                         {mode === 'edit' ? 'Cancel' : 'Edit Profile'}
+                    </button>
+                    <button onClick={() => navigate('/onboarding/scheduling')}>
+                        Scheduling Preferences
                     </button>
                 </div>
 
@@ -311,6 +347,9 @@ function CustomerPage() {
                         {definitions.map(def => (
                             <li key={def.id} className={styles.definitionItem}>
                                 {def.title}: {def.startTime} - {def.endTime}, mask {def.dayMask}
+                                <span className={styles.categorySummary}>
+                                    allowed: {displayCategories(def.allowedCategories)}
+                                </span>
                                 <button onClick={() => editDefinition(def)} className={styles.ml}>
                                     Edit
                                 </button>
@@ -357,24 +396,61 @@ function CustomerPage() {
                                 value={defEndTime}
                                 onChange={e => setDefEndTime(e.target.value)}
                             />
-                            <input
-                                type="text"
-                                placeholder="Allowed (csv)"
-                                value={defAllowed}
-                                onChange={e => setDefAllowed(e.target.value)}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Excluded (csv)"
-                                value={defExcluded}
-                                onChange={e => setDefExcluded(e.target.value)}
-                            />
+                            <label className={styles.categorySelect}>
+                                Allowed categories
+                                <select
+                                    multiple
+                                    value={defAllowed.map(canonicalizeCategory)}
+                                    onChange={e => setDefAllowed(selectedOptions(e))}
+                                >
+                                    {categoryOptions.map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className={styles.categorySelect}>
+                                Excluded categories
+                                <select
+                                    multiple
+                                    value={defExcluded.map(canonicalizeCategory)}
+                                    onChange={e => setDefExcluded(selectedOptions(e))}
+                                >
+                                    {categoryOptions.map(category => (
+                                        <option key={category} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <div className={styles.customCategoryRow}>
+                                <input
+                                    type="text"
+                                    placeholder="Custom category"
+                                    value={customCategory}
+                                    onChange={e => setCustomCategory(e.target.value)}
+                                />
+                                <button type="button" onClick={addCustomCategory}>
+                                    Add
+                                </button>
+                            </div>
                             <input
                                 type="number"
                                 placeholder="Priority Override"
                                 value={defPriority}
                                 onChange={e => setDefPriority(e.target.value)}
                             />
+                            <button
+                                type="button"
+                                onClick={() => setDefAllowed(['Education'])}
+                                className={styles.quickCategoryButton}
+                            >
+                                Education only
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDefAllowed(['Sport'])}
+                                className={styles.quickCategoryButton}
+                            >
+                                Sport only
+                            </button>
                             <button
                                 onClick={createDefinition}
                                 disabled={!defTitle.trim()}

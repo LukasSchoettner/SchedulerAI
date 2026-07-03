@@ -7,6 +7,7 @@ import com.scheduler.scheduling.models.TimeSlot;
 import com.scheduler.scheduling.strategy.SchedulingStrategy;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,19 +37,39 @@ public class GenericFlexibleTaskScheduler implements SchedulingStrategy<Flexible
 
         for (TimeSlot slot : slots) {
             if (needed <= 0) break;
-            int minutes = sizer.computeBlockSize(task, slot, needed);
+            TimeSlot usableSlot = constrainToTaskWindow(task, slot);
+            if (usableSlot == null) continue;
+
+            int minutes = sizer.computeBlockSize(task, usableSlot, needed);
             if (minutes <= 0) continue;
             TimeSlot assigned = new TimeSlot(
-                    slot.getStart(),
-                    slot.getStart().plusMinutes(minutes)
+                    usableSlot.getStart(),
+                    usableSlot.getStart().plusMinutes(minutes)
             );
             usedSlots.add(assigned);
             // advance the slot start
-            slot.setStart(assigned.getEnd());
+            slot.setStart(assigned.getEnd().isAfter(slot.getStart()) ? assigned.getEnd() : slot.getStart());
             needed -= minutes;
         }
 
         return usedSlots.isEmpty() ? null : new ScheduledTask(task, usedSlots);
+    }
+
+    private TimeSlot constrainToTaskWindow(FlexibleTaskDTO task, TimeSlot slot) {
+        LocalDateTime start = slot.getStart();
+        LocalDateTime end = slot.getEnd();
+
+        if (task.getEarliestStartDateTime() != null && start.isBefore(task.getEarliestStartDateTime())) {
+            start = task.getEarliestStartDateTime();
+        }
+        if (task.getLatestEndDateTime() != null && end.isAfter(task.getLatestEndDateTime())) {
+            end = task.getLatestEndDateTime();
+        }
+        if (task.getDueDate() != null && end.isAfter(task.getDueDate())) {
+            end = task.getDueDate();
+        }
+
+        return start.isBefore(end) ? new TimeSlot(start, end) : null;
     }
 
     private int computeTotalNeeded(FlexibleTaskDTO task) {
@@ -96,4 +117,3 @@ public class GenericFlexibleTaskScheduler implements SchedulingStrategy<Flexible
 
 
 }
-

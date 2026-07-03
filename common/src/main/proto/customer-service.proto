@@ -27,6 +27,46 @@ message CustomerProto {
   string           email            = 3;
   bool             active           = 4;
   MembershipLevel  membershipLevel  = 5;
+  SchedulingPreferenceProto schedulingPreference = 6;
+}
+
+message CategoryIntTargetProto {
+  string category = 1;
+  int32 value = 2;
+}
+
+message CategoryBooleanSettingProto {
+  string category = 1;
+  bool value = 2;
+}
+
+message MinimumRequirementProto {
+  string category = 1;
+  string type = 2;
+  int32 amount = 3;
+  string period = 4;
+}
+
+message SchedulingPreferenceProto {
+  int64 id = 1;
+  string primaryPriority = 2;
+  repeated string fixedCommitmentCategories = 3;
+  string workFlexibility = 4;
+  repeated string healthConstraints = 5;
+  string allocationMode = 6;
+  repeated CategoryIntTargetProto taskCountTargets = 7;
+  int32 plannedHoursPerDayMinutes = 8;
+  repeated CategoryIntTargetProto timeBudgetTargets = 9;
+  string fixedTimeBudgetMode = 10;
+  repeated CategoryBooleanSettingProto fixedTimeCountsByCategory = 11;
+  repeated MinimumRequirementProto minimumRequirements = 12;
+  int32 pauseMinutes = 13;
+  string pauseOverloadBehavior = 14;
+  string planningFullness = 15;
+  repeated string overloadReductionOrder = 16;
+  string temporaryMode = 17;
+  string temporaryUntil = 18;
+  repeated string categoryPriorityOrder = 19;
 }
 
 message CustomerList {

@@ -15,7 +15,12 @@ function LoginPage() {
             if (response.data?.token) {
                 localStorage.setItem('token', response.data.token);
             }
-            navigate('/home');
+            try {
+                const status = await api.get('/customers/preferences/onboarding-status');
+                navigate(status.data?.completed ? '/home' : '/onboarding/scheduling');
+            } catch {
+                navigate('/onboarding/scheduling');
+            }
         } catch (err) {
             console.error('Login failed:', err);
             alert('Login failed');

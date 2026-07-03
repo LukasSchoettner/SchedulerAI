@@ -10,6 +10,7 @@ export default function Layout() {
         <Link to="/customer">Customer</Link>
         <Link to="/schedule">Schedule</Link>
         <Link to="/locations">Locations</Link>
+        <Link to="/onboarding/scheduling">Preferences</Link>
       </nav>
       <main className={styles.main}>
         <Outlet />

@@ -24,9 +24,19 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
         return JwtGrpcServerInterceptor.CUSTOMER_ID_CTX_KEY.get();
     }
 
+    private long requireCurrentCustomerId() {
+        Long cid = currentCustomerId();
+        if (cid == null) {
+            throw Status.UNAUTHENTICATED
+                    .withDescription("Missing customer id in gRPC context")
+                    .asRuntimeException();
+        }
+        return cid;
+    }
+
     @Override
     public void listTasksForCustomer(ListTasksRequest req, StreamObserver<TaskProto> obs) {
-        long cid = currentCustomerId();
+        long cid = req.getCustomerId() > 0 ? req.getCustomerId() : requireCurrentCustomerId();
         taskService
                 .listTasksForCustomer(cid)
                 .forEach(dto -> obs.onNext(taskMapper.toTaskProto(dto)));
@@ -35,7 +45,7 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
 
     @Override
     public void createTask(TaskCreate req, StreamObserver<TaskProto> obs) {
-        long cid = currentCustomerId();
+        long cid = requireCurrentCustomerId();
         TaskDTO dto = taskMapper.toTaskDTO(req);
         TaskDTO saved = taskService.createTask(dto, cid);
         obs.onNext(taskMapper.toTaskProto(saved));
@@ -44,7 +54,7 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
 
     @Override
     public void updateTask(TaskProto req, StreamObserver<TaskProto> obs) {
-        long cid = currentCustomerId();
+        long cid = requireCurrentCustomerId();
         TaskDTO dto = taskMapper.toTaskDTO(req);
         taskService
                 .updateTask(req.getId(), dto, cid)
@@ -61,7 +71,7 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
 
     @Override
     public void getTaskById(TaskRequest req, StreamObserver<TaskProto> obs) {
-        long cid = currentCustomerId();
+        long cid = requireCurrentCustomerId();
         taskService
                 .getTaskById(req.getId(), cid)
                 .ifPresentOrElse(
@@ -77,7 +87,7 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
 
     @Override
     public void deleteTask(TaskRequest req, StreamObserver<TaskDeleteResponse> obs) {
-        long cid = currentCustomerId();
+        long cid = requireCurrentCustomerId();
         boolean ok = taskService.deleteTask(req.getId(), cid);
         obs.onNext(TaskDeleteResponse.newBuilder().setSuccess(ok).build());
         obs.onCompleted();

@@ -1,20 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import api from '../lib/api';
+import { BUILT_IN_CATEGORIES, canonicalizeCategory, getCategoryMeta } from '../lib/categories';
 import styles from './SchedulePage.module.css';
 
 export default function SchedulePage() {
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [hasGenerated, setHasGenerated] = useState(false);
+    const [activeCategories, setActiveCategories] = useState(() => new Set(BUILT_IN_CATEGORIES));
+    const [calendarStartDate, setCalendarStartDate] = useState(null);
     const [confirmState, setConfirmState] = useState({
         open: false,
         taskId: null,
         title: '',
     });
+    const calendarRef = useRef(null);
 
     const navigate = useNavigate();
 
@@ -48,17 +53,29 @@ export default function SchedulePage() {
                         extendedProps: {
                             taskId: task.id, // real id for backend calls
                             type: task.type,
+                            category: canonicalizeCategory(task.category),
                             description: task.description || 'No description',
                             dueDate: task.dueDate,
                             bufferTime: task.bufferTime,
                         },
                         backgroundColor: getColorForCategory(task.category),
+                        borderColor: getColorForCategory(task.category),
                     };
                 });
             });
 
             console.log('Mapped events:', mapped);
             setEvents(mapped);
+            setHasGenerated(true);
+            setActiveCategories(new Set([
+                ...BUILT_IN_CATEGORIES,
+                ...mapped.map(event => event.extendedProps.category).filter(Boolean),
+            ]));
+
+            const firstEvent = mapped
+                .filter(event => event.start)
+                .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+            setCalendarStartDate(firstEvent?.start || null);
         } catch (err) {
             console.error('Failed to fetch schedule:', err);
             alert('Failed to generate schedule.');
@@ -120,14 +137,51 @@ export default function SchedulePage() {
     };
 
     const getColorForCategory = (category) => {
-        const map = {
-            Work: '#4caf50',
-            Duty: '#2196f3',
-            Sport: '#ff9800',
-            Leisure: '#9c27b0',
-        };
-        return map[category] || '#607d8b';
+        return getCategoryMeta(category).color;
     };
+
+    const showAllCategories = () => {
+        setActiveCategories(new Set(legendCategories));
+        goToFirstEvent(events);
+    };
+
+    const focusCategory = (category) => {
+        setActiveCategories(prev => {
+            if (prev.size === 1 && prev.has(category)) {
+                return new Set(legendCategories);
+            }
+            return new Set([category]);
+        });
+
+        const matchingEvents = events.filter(event => event.extendedProps.category === category);
+        goToFirstEvent(matchingEvents);
+    };
+
+    const goToFirstEvent = (eventList) => {
+        const firstEvent = eventList
+            .filter(event => event.start)
+            .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+        if (firstEvent && calendarRef.current) {
+            calendarRef.current.getApi().gotoDate(firstEvent.start);
+        }
+    };
+
+    const categoryCounts = events.reduce((counts, event) => {
+        const category = event.extendedProps.category || 'Custom';
+        counts[category] = (counts[category] || 0) + 1;
+        return counts;
+    }, {});
+    const visibleEvents = events.filter(event => activeCategories.has(event.extendedProps.category));
+    const legendCategories = [
+        ...BUILT_IN_CATEGORIES,
+        ...Object.keys(categoryCounts).filter(category => !BUILT_IN_CATEGORIES.includes(category)),
+    ];
+
+    useEffect(() => {
+        if (calendarStartDate && calendarRef.current) {
+            calendarRef.current.getApi().gotoDate(calendarStartDate);
+        }
+    }, [calendarStartDate, events.length]);
 
     return (
         <div className={styles.container}>
@@ -144,26 +198,68 @@ export default function SchedulePage() {
             </div>
 
             <div className={styles.content}>
-                {!events.length && (
+                {!hasGenerated && !loading && (
                     <p className={styles.info}>
                         Click &quot;Generate Schedule&quot; to see your tasks.
                     </p>
                 )}
 
-                {events.length === 0 && (
+                {hasGenerated && events.length === 0 && (
                     <p className={styles.noTasks}>No tasks could be scheduled.</p>
                 )}
 
                 {events.length > 0 && (
-                    <FullCalendar
-                        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                        initialView="timeGridWeek"
-                        events={events}
-                        height="auto"
-                        contentHeight="auto"
-                        expandRows={true}
-                        eventClick={onEventClick}
-                    />
+                    <>
+                        <div className={styles.categoryToolbar} aria-label="Schedule categories">
+                            <button
+                                type="button"
+                                className={`${styles.categoryChip} ${activeCategories.size === legendCategories.length ? styles.categoryChipActive : ''}`}
+                                onClick={showAllCategories}
+                            >
+                                All
+                                <span className={styles.categoryCount}>
+                                    {events.length}
+                                </span>
+                            </button>
+                            {legendCategories.map(category => {
+                                const selected = activeCategories.has(category);
+                                const meta = getCategoryMeta(category);
+                                return (
+                                    <button
+                                        key={category}
+                                        type="button"
+                                        className={`${styles.categoryChip} ${selected ? styles.categoryChipActive : ''}`}
+                                        onClick={() => focusCategory(category)}
+                                        title={meta.description}
+                                    >
+                                        <span
+                                            className={styles.categoryDot}
+                                            style={{ backgroundColor: meta.color }}
+                                            aria-hidden="true"
+                                        />
+                                        {category}
+                                        <span className={styles.categoryCount}>
+                                            {categoryCounts[category] || 0}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {visibleEvents.length === 0 && (
+                            <p className={styles.noTasks}>No events match the selected categories.</p>
+                        )}
+                        <FullCalendar
+                            ref={calendarRef}
+                            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                            initialView="timeGridWeek"
+                            initialDate={calendarStartDate || undefined}
+                            events={visibleEvents}
+                            height="auto"
+                            contentHeight="auto"
+                            expandRows={true}
+                            eventClick={onEventClick}
+                        />
+                    </>
                 )}
             </div>
 

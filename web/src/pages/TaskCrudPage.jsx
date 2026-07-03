@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
+import {
+    canonicalizeCategory,
+    getCategoryMeta,
+    getAllCategories,
+    normalizeCategoryList,
+    saveCustomCategory
+} from '../lib/categories';
 import styles from './TaskCrudPage.module.css';
 import LocationPicker from '../components/LocationPicker';
 
@@ -32,6 +39,8 @@ function TaskCrudPage() {
 
     const [newTask, setNewTask] = useState(defaultTask);
     const [editingTaskId, setEditingTaskId] = useState(null);
+    const [categoryOptions, setCategoryOptions] = useState(getAllCategories());
+    const [customCategory, setCustomCategory] = useState('');
 
     // separate state for location (lat/lon)
     const [location, setLocation] = useState({
@@ -56,7 +65,12 @@ function TaskCrudPage() {
     const fetchTasks = async () => {
         try {
             const response = await api.get(`/tasks`);
-            setTasks(response.data);
+            const loadedTasks = response.data || [];
+            setTasks(loadedTasks);
+            setCategoryOptions(normalizeCategoryList([
+                ...getAllCategories(),
+                ...loadedTasks.map(task => task.category),
+            ]));
         } catch (err) {
             console.error('Error fetching tasks:', err);
             alert('Failed to fetch tasks');
@@ -96,6 +110,7 @@ function TaskCrudPage() {
 
             const taskPayload = {
                 ...newTask,
+                category: canonicalizeCategory(newTask.category),
                 addressId,
                 addressText: location.addressText || newTask.addressText || null,
             };
@@ -143,6 +158,7 @@ function TaskCrudPage() {
         setNewTask({
             ...defaultTask,
             ...task,
+            category: canonicalizeCategory(task.category || defaultTask.category),
             dueDate: toLocalInputValue(task.dueDate),
             reminderDate: toLocalInputValue(task.reminderDate),
             earliestStartDateTime: toLocalInputValue(task.earliestStartDateTime),
@@ -161,6 +177,7 @@ function TaskCrudPage() {
     const resetTaskForm = () => {
         setEditingTaskId(null);
         setNewTask(defaultTask);
+        setCustomCategory('');
         setLocation({ addressText: '', latitude: null, longitude: null, addressId: null });
     };
 
@@ -175,6 +192,21 @@ function TaskCrudPage() {
 
     const handleChange = (field, value) =>
         setNewTask((prev) => ({ ...prev, [field]: value }));
+
+    const currentCategoryValue = categoryOptions.some(
+        option => option.toLowerCase() === String(newTask.category || '').toLowerCase()
+    )
+        ? canonicalizeCategory(newTask.category)
+        : '__custom__';
+
+    const addCustomCategory = () => {
+        const savedCategory = saveCustomCategory(customCategory);
+        if (!savedCategory) return;
+
+        setCategoryOptions(getAllCategories());
+        setNewTask(prev => ({ ...prev, category: savedCategory }));
+        setCustomCategory('');
+    };
 
     return (
         <div className={styles.container}>
@@ -237,10 +269,34 @@ function TaskCrudPage() {
 
                 <div>
                     <label>Category</label>
-                    <input
-                        value={newTask.category || ''}
-                        onChange={e => handleChange('category', e.target.value)}
-                    />
+                    <select
+                        value={currentCategoryValue}
+                        onChange={e => {
+                            if (e.target.value === '__custom__') {
+                                handleChange('category', '');
+                            } else {
+                                handleChange('category', e.target.value);
+                                setCustomCategory('');
+                            }
+                        }}
+                    >
+                        {categoryOptions.map(category => (
+                            <option key={category} value={category}>{category}</option>
+                        ))}
+                        <option value="__custom__">Add custom category</option>
+                    </select>
+                    {currentCategoryValue === '__custom__' && (
+                        <div className={styles.inlineControl}>
+                            <input
+                                value={customCategory}
+                                onChange={e => setCustomCategory(e.target.value)}
+                                placeholder="Custom category"
+                            />
+                            <button type="button" onClick={addCustomCategory}>
+                                Add
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* NEW: optional address input */}
@@ -378,7 +434,19 @@ function TaskCrudPage() {
                 {tasks.map(t => (
                     <li key={t.id} className={styles.taskItem}>
                         <div>
-                            <strong>{t.title}</strong> [{t.type}, p{t.priority}, {t.status}]
+                            <div className={styles.taskTitleRow}>
+                                <strong>{t.title}</strong>
+                                <span
+                                    className={styles.categoryBadge}
+                                    style={{ backgroundColor: getCategoryMeta(t.category).color }}
+                                    title={getCategoryMeta(t.category).description}
+                                >
+                                    {canonicalizeCategory(t.category) || 'Uncategorized'}
+                                </span>
+                            </div>
+                            <span className={styles.taskMeta}>
+                                {t.type}, p{t.priority}, {t.status}
+                            </span>
                             {t.addressText && (
                                 <> @ <span>{t.addressText}</span></>
                             )}

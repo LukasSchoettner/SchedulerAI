@@ -4,6 +4,8 @@ import com.scheduler.commoncode.dto.CustomerDTO;
 import com.scheduler.commoncode.dto.FixedTaskDTO;
 import com.scheduler.commoncode.dto.FlexibleTaskDTO;
 import com.scheduler.commoncode.dto.ProjectTaskDTO;
+import com.scheduler.commoncode.dto.MinimumRequirementDTO;
+import com.scheduler.commoncode.dto.SchedulingPreferenceDTO;
 import com.scheduler.commoncode.dto.TaskDTO;
 import com.scheduler.commoncode.dto.ZoneConfigurationDTO;
 import com.scheduler.commoncode.dto.ZoneDefinitionDTO;
@@ -113,6 +115,7 @@ public class MasterScheduler {
         LocalDateTime now = LocalDateTime.now();
         int horizonDays = resolveHorizonDays(customer.getMembershipLevel());
         LocalDateTime end = now.plusDays(horizonDays);
+        SchedulingPreferenceDTO preferences = activePreferences(customer.getSchedulingPreference());
 
         // Build zone segments safely
         ZoneConfigurationDTO cfg = customer.getZoneConfiguration();
@@ -139,7 +142,7 @@ public class MasterScheduler {
                     scheduled.add(st);
                     List<TimeSlot> slots =
                             st.getAssignedSlots() != null ? st.getAssignedSlots() : Collections.emptyList();
-                    segments = subtractSegments(segments, slots);
+                    segments = subtractSegments(segments, reservePauseAfter(slots, preferences));
                 }
             }
         } else {
@@ -149,7 +152,13 @@ public class MasterScheduler {
         // ------------------------------------
         // 2) Schedule FLEXIBLE TASKS (routing-aware order)
         // ------------------------------------
-        List<FlexibleTaskDTO> flexTasks = orderFlexibleTasksByRouting(taskList, distanceMatrix);
+        List<FlexibleTaskDTO> flexTasks = applyPreferencesToFlexibleTasks(
+                orderFlexibleTasksByRouting(taskList, distanceMatrix),
+                fixedTasks,
+                segments,
+                preferences,
+                horizonDays
+        );
 
         @SuppressWarnings("unchecked")
         SchedulingStrategy<FlexibleTaskDTO> flexStrat =
@@ -167,7 +176,7 @@ public class MasterScheduler {
                     scheduled.add(st);
                     List<TimeSlot> slots =
                             st.getAssignedSlots() != null ? st.getAssignedSlots() : Collections.emptyList();
-                    segments = subtractSegments(segments, slots);
+                    segments = subtractSegments(segments, reservePauseAfter(slots, preferences));
                 }
             }
         } else {
@@ -198,7 +207,7 @@ public class MasterScheduler {
                     scheduled.add(st);
                     List<TimeSlot> slots =
                             st.getAssignedSlots() != null ? st.getAssignedSlots() : Collections.emptyList();
-                    segments = subtractSegments(segments, slots);
+                    segments = subtractSegments(segments, reservePauseAfter(slots, preferences));
                 }
             }
         } else {
@@ -317,6 +326,92 @@ public class MasterScheduler {
         return ordered;
     }
 
+    private SchedulingPreferenceDTO activePreferences(SchedulingPreferenceDTO preferences) {
+        if (preferences == null) return null;
+        if ("UNTIL_DATE".equals(preferences.getTemporaryMode())
+                && preferences.getTemporaryUntil() != null
+                && preferences.getTemporaryUntil().isBefore(LocalDate.now())) {
+            return null;
+        }
+        return preferences;
+    }
+
+    private List<FlexibleTaskDTO> applyPreferencesToFlexibleTasks(
+            List<FlexibleTaskDTO> flexTasks,
+            List<FixedTaskDTO> fixedTasks,
+            List<ZoneSegment> availableSegments,
+            SchedulingPreferenceDTO preferences,
+            int horizonDays
+    ) {
+        if (flexTasks == null || flexTasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (preferences == null) {
+            return flexTasks;
+        }
+
+        List<FlexibleTaskDTO> ordered = new ArrayList<>(flexTasks);
+        ordered.sort(Comparator
+                .comparingInt((FlexibleTaskDTO task) -> -(task.getPriority() != null ? task.getPriority() : 0))
+                .thenComparingInt(task -> categoryRank(task, preferences))
+                .thenComparing(task -> task.getDueDate() != null ? task.getDueDate() : LocalDateTime.MAX)
+                .thenComparing(task -> task.getTitle() != null ? task.getTitle() : ""));
+        return ordered;
+    }
+
+    private int categoryRank(FlexibleTaskDTO task, SchedulingPreferenceDTO preferences) {
+        List<String> order = preferences.getCategoryPriorityOrder() == null || preferences.getCategoryPriorityOrder().isEmpty()
+                ? List.of("Work", "Duty", "Health", "Social", "Sport", "Leisure")
+                : preferences.getCategoryPriorityOrder();
+        List<String> normalizedOrder = order.stream()
+                    .map(this::canonicalCategory)
+                    .collect(Collectors.toList());
+        int index = normalizedOrder.indexOf(canonicalCategory(task.getCategory()));
+        return index >= 0 ? index : normalizedOrder.size();
+    }
+
+    private List<TimeSlot> reservePauseAfter(List<TimeSlot> slots, SchedulingPreferenceDTO preferences) {
+        int pause = pauseMinutes(preferences);
+        if (pause <= 0 || slots == null) return slots != null ? slots : Collections.emptyList();
+        return slots.stream()
+                .map(slot -> new TimeSlot(slot.getStart(), slot.getEnd().plusMinutes(pause)))
+                .collect(Collectors.toList());
+    }
+
+    private int pauseMinutes(SchedulingPreferenceDTO preferences) {
+        if (preferences == null || preferences.getPauseMinutes() == null) return 0;
+        int pause = Math.max(preferences.getPauseMinutes(), 0);
+        if ("SHORTEN_IF_NECESSARY".equals(preferences.getPauseOverloadBehavior())) {
+            return Math.min(pause, 5);
+        }
+        return pause;
+    }
+
+    private <T> Map<String, T> safeMap(Map<String, T> map) {
+        if (map == null) return Collections.emptyMap();
+        Map<String, T> normalized = new HashMap<>();
+        map.forEach((category, value) -> normalized.put(canonicalCategory(category), value));
+        return normalized;
+    }
+
+    private String canonicalCategory(String category) {
+        if (category == null || category.isBlank()) return "";
+        String trimmed = category.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        return switch (lower) {
+            case "duties", "responsibilities" -> "Duty";
+            case "sport / fitness", "sport", "fitness" -> "Sport";
+            case "leisure / recovery", "leisure", "recovery" -> "Leisure";
+            case "health appointments / medication", "health" -> "Health";
+            case "social life", "social commitments", "social" -> "Social";
+            case "studying", "study", "school", "education" -> "Education";
+            case "work" -> "Work";
+            case "balance" -> "Balance";
+            case "duty" -> "Duty";
+            default -> trimmed.substring(0, 1).toUpperCase(Locale.ROOT) + trimmed.substring(1).toLowerCase(Locale.ROOT);
+        };
+    }
+
     /**
      * Basic consistency checks for the distance matrix.
      * We expect:
@@ -363,6 +458,8 @@ public class MasterScheduler {
         LocalTime defaultEnd = cfg != null && cfg.getEndTime() != null ? cfg.getEndTime() : LocalTime.of(20, 0);
         List<ZoneDefinitionDTO> defs = (cfg != null && cfg.getZones() != null)
                 ? cfg.getZones() : Collections.emptyList();
+        List<ZoneSegment> specialSegments = new ArrayList<>();
+        List<TimeSlot> specialOccupiedSlots = new ArrayList<>();
         Set<String> categorySpecificRules = defs.stream()
                 .filter(def -> def.getAllowedCategories() != null)
                 .flatMap(def -> def.getAllowedCategories().stream())
@@ -371,28 +468,8 @@ public class MasterScheduler {
                 .filter(category -> !category.isBlank())
                 .collect(Collectors.toSet());
 
-        // Add DEFAULT ZONE for each day
         LocalDate day = start.toLocalDate();
         LocalDate last = end.toLocalDate();
-        while (!day.isAfter(last)) {
-            LocalDateTime zs = day.atTime(defaultStart);
-            LocalDateTime ze = day.atTime(defaultEnd);
-            if (zs.isBefore(start)) zs = start;
-            if (ze.isAfter(end)) ze = end;
-            if (zs.isBefore(ze)) {
-                CompositeEvaluator baseEval = new CompositeEvaluator();
-                baseEval.addEvaluator(new TimeWindowEvaluator(defaultStart, defaultEnd));
-                baseEval.addEvaluator(new CategoryEvaluator(
-                        Collections.emptySet(),
-                        categorySpecificRules,
-                        null
-                ));
-                segments.add(new ZoneSegment(new TimeSlot(zs, ze), baseEval));
-            }
-            day = day.plusDays(1);
-        }
-
-        // Add SPECIAL ZONE windows from definitions
         for (ZoneDefinitionDTO def : defs) {
             if (def.getStartTime() == null || def.getEndTime() == null) continue;
 
@@ -406,20 +483,54 @@ public class MasterScheduler {
             ));
 
             day = start.toLocalDate();
-            last = end.toLocalDate();
             while (!day.isAfter(last)) {
+                if (!matchesDayMask(def.getDayMask(), day)) {
+                    day = day.plusDays(1);
+                    continue;
+                }
                 LocalDateTime zs = day.atTime(def.getStartTime());
                 LocalDateTime ze = day.atTime(def.getEndTime());
                 if (zs.isBefore(start)) zs = start;
                 if (ze.isAfter(end)) ze = end;
                 if (zs.isBefore(ze)) {
-                    segments.add(new ZoneSegment(new TimeSlot(zs, ze), eval));
+                    TimeSlot slot = new TimeSlot(zs, ze);
+                    specialSegments.add(new ZoneSegment(slot, eval));
+                    specialOccupiedSlots.add(slot);
                 }
                 day = day.plusDays(1);
             }
         }
 
+        // Add DEFAULT ZONE for each day
+        day = start.toLocalDate();
+        while (!day.isAfter(last)) {
+            LocalDateTime zs = day.atTime(defaultStart);
+            LocalDateTime ze = day.atTime(defaultEnd);
+            if (zs.isBefore(start)) zs = start;
+            if (ze.isAfter(end)) ze = end;
+            if (zs.isBefore(ze)) {
+                CompositeEvaluator baseEval = new CompositeEvaluator();
+                baseEval.addEvaluator(new TimeWindowEvaluator(defaultStart, defaultEnd));
+                baseEval.addEvaluator(new CategoryEvaluator(
+                        Collections.emptySet(),
+                        categorySpecificRules,
+                        null
+                ));
+                for (TimeSlot slot : subtractSlots(Collections.singletonList(new TimeSlot(zs, ze)), specialOccupiedSlots)) {
+                    segments.add(new ZoneSegment(slot, baseEval));
+                }
+            }
+            day = day.plusDays(1);
+        }
+
+        segments.addAll(specialSegments);
+
         return segments;
+    }
+
+    private boolean matchesDayMask(int dayMask, LocalDate day) {
+        int requiredBit = 1 << (day.getDayOfWeek().getValue() - 1);
+        return (dayMask & requiredBit) != 0;
     }
 
     private List<ZoneSegment> subtractSegments(

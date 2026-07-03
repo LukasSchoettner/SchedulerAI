@@ -1,0 +1,374 @@
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  color: #1f2933;
+  text-align: left;
+}
+
+.header {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.header h2,
+.header p {
+  margin: 0;
+  color: #1f2933;
+}
+
+.header h2 {
+  font-size: 1.85rem;
+  line-height: 1.15;
+}
+
+.header p {
+  color: #52616b;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #1565c0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.progress {
+  width: 100%;
+  height: 0.45rem;
+  background: #e7ecef;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: #1565c0;
+  transition: width 180ms ease;
+}
+
+.panel {
+  border: 1px solid #d9e0e4;
+  border-radius: 8px;
+  padding: 1.15rem;
+  background: #fff;
+  color: #1f2933;
+  box-shadow: 0 8px 24px rgba(31, 41, 51, 0.06);
+}
+
+.panel h3 {
+  margin-top: 0;
+  margin-bottom: 0.85rem;
+  color: #1f2933;
+}
+
+.panel h4 {
+  margin: 0;
+  color: #1f2933;
+}
+
+.helperText {
+  margin-top: -0.25rem;
+  color: #52616b;
+}
+
+.warningText {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #f5c26b;
+  border-radius: 6px;
+  background: #fff8e6;
+  color: #6f4f00;
+  font-weight: 700;
+}
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+
+.choiceGrid button,
+.actions button,
+.rankItem button,
+.definitionEditor button,
+.minimumRow button,
+.summaryRow button {
+  min-height: 2.25rem;
+  border: 1px solid #c9d4dc;
+  background: #f8fafc;
+  color: #1f2933;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.choiceGrid button:hover,
+.actions button:hover,
+.rankItem button:hover,
+.definitionEditor button:hover,
+.minimumRow button:hover,
+.summaryRow button:hover {
+  border-color: #1565c0;
+  background: #eef5ff;
+}
+
+.actions button:last-child,
+.definitionEditor button,
+.minimumRow button,
+.summaryRow button {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+}
+
+.actions button:disabled {
+  background: #e3e8ee;
+  border-color: #d7dee5;
+  color: #7b8794;
+  cursor: not-allowed;
+}
+
+.rankItem button:disabled {
+  background: #eef1f3;
+  border-color: #d7dee5;
+  color: #8a97a3;
+  cursor: not-allowed;
+}
+
+.selected {
+  border-color: #1565c0 !important;
+  background: #eef5ff !important;
+  color: #0b3d73;
+  box-shadow: inset 0 0 0 1px #1565c0;
+}
+
+.rankingList,
+.zoneList,
+.zoneBuilder,
+.definitionEditor {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.rankItem,
+.zoneDefinition {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #e7ecef;
+  color: #1f2933;
+}
+
+.rankItem:last-child {
+  border-bottom: 0;
+}
+
+.rankItem div {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.rankNumber {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #0b3d73;
+  font-weight: 800;
+}
+
+.zoneBuilder {
+  margin-top: 1rem;
+}
+
+.zoneBuilder label,
+.definitionEditor label {
+  display: grid;
+  gap: 0.25rem;
+  color: #1f2933;
+}
+
+.definitionEditor {
+  padding: 0.9rem;
+  border: 1px solid #d9e0e4;
+  border-radius: 6px;
+  background: #f7f9fa;
+}
+
+.twoColumn,
+.timeRange,
+.checkboxGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.timeRange {
+  margin-top: 1rem;
+}
+
+.inlineCheck {
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.45rem !important;
+}
+
+.inlineCheck input {
+  width: auto;
+  accent-color: #1565c0;
+}
+
+.zoneDefinition {
+  grid-template-columns: minmax(130px, 0.7fr) 1fr 1fr minmax(150px, 0.8fr) auto;
+  padding: 0.75rem;
+  border: 1px solid #d9e0e4;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.recommendation {
+  color: #1565c0;
+  font-weight: 700;
+}
+
+.customPause {
+  display: grid;
+  gap: 0.25rem;
+  color: #1f2933;
+}
+
+.customPause input {
+  min-width: 0;
+}
+
+.customPause input,
+.targetGrid input,
+.minimumRow input,
+.minimumRow select,
+.panel input,
+.panel select {
+  border: 1px solid #c9d4dc;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2933;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.customPause input:focus,
+.targetGrid input:focus,
+.minimumRow input:focus,
+.minimumRow select:focus,
+.panel input:focus,
+.panel select:focus {
+  border-color: #1565c0;
+  outline: 3px solid #d8e9ff;
+}
+
+.targetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.targetGrid label {
+  display: grid;
+  gap: 0.25rem;
+  color: #1f2933;
+}
+
+.minimumRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.minimumList {
+  display: grid;
+  gap: 0.4rem;
+  padding-left: 1rem;
+}
+
+.minimumList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #1f2933;
+}
+
+.summaryBox {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #d9e0e4;
+  border-radius: 6px;
+  background: #f7f9fa;
+  color: #1f2933;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem;
+  border-bottom: 1px solid #eef1f3;
+  color: #1f2933;
+}
+
+.summaryRow span {
+  color: #3e4c59;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .minimumRow,
+  .summaryRow,
+  .rankItem,
+  .zoneDefinition {
+    grid-template-columns: 1fr;
+  }
+
+  .rankNumber {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .rankItem div,
+  .actions {
+    width: 100%;
+  }
+
+  .rankItem button,
+  .actions button {
+    flex: 1;
+  }
+}

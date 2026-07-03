@@ -29,7 +29,41 @@
   gap: 1rem;
 }
 
+.taskTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.taskMeta {
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.categoryBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .taskActions {
   display: flex;
   gap: 0.5rem;
+}
+
+.inlineControl {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.inlineControl input {
+  flex: 1;
 }

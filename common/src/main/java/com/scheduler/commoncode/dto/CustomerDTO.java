@@ -32,4 +32,22 @@ public class CustomerDTO {
     private ZoneConfigurationDTO zoneConfiguration;
 
     private MembershipLevel membershipLevel;
+
+    private SchedulingPreferenceDTO schedulingPreference;
+
+    public CustomerDTO(Long id,
+                       String customername,
+                       String email,
+                       String password,
+                       boolean active,
+                       ZoneConfigurationDTO zoneConfiguration,
+                       MembershipLevel membershipLevel) {
+        this.id = id;
+        this.customername = customername;
+        this.email = email;
+        this.password = password;
+        this.active = active;
+        this.zoneConfiguration = zoneConfiguration;
+        this.membershipLevel = membershipLevel;
+    }
 }

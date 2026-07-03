@@ -3,8 +3,11 @@ package com.scheduler.customermanagement.services;
 import com.scheduler.commoncode.dto.CustomerDTO;
 import com.scheduler.commoncode.enums.MembershipLevel;
 import com.scheduler.customermanagement.mapper.CustomerMapper;
+import com.scheduler.customermanagement.mapper.SchedulingPreferenceMapper;
 import com.scheduler.customermanagement.models.Customer;
 import com.scheduler.customermanagement.repositories.CustomerRepository;
+import com.scheduler.customermanagement.repositories.SchedulingPreferenceRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,10 +22,19 @@ public class CustomerService {
 
     private final CustomerRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final SchedulingPreferenceRepository preferenceRepository;
 
     public CustomerService(CustomerRepository repository, PasswordEncoder passwordEncoder) {
+        this(repository, passwordEncoder, null);
+    }
+
+    @Autowired
+    public CustomerService(CustomerRepository repository,
+                           PasswordEncoder passwordEncoder,
+                           SchedulingPreferenceRepository preferenceRepository) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.preferenceRepository = preferenceRepository;
     }
 
     public CustomerDTO createCustomer(CustomerDTO dto) {
@@ -52,13 +64,13 @@ public class CustomerService {
 
     public List<CustomerDTO> getAllCustomers() {
         return repository.findAll().stream()
-                .map(CustomerMapper::toDto)
+                .map(this::toDtoWithPreferences)
                 .collect(Collectors.toList());
     }
 
     public Optional<CustomerDTO> getCustomerById(Long id) {
         return repository.findById(id)
-                .map(CustomerMapper::toDto);
+                .map(this::toDtoWithPreferences);
     }
 
     public Optional<CustomerDTO> updateCustomer(Long id, CustomerDTO dto) {
@@ -71,7 +83,7 @@ public class CustomerService {
             }
 
             Customer saved = repository.save(existing);
-            return CustomerMapper.toDto(saved);
+            return toDtoWithPreferences(saved);
         });
     }
 
@@ -79,5 +91,15 @@ public class CustomerService {
         if (!repository.existsById(id)) return false;
         repository.deleteById(id);
         return true;
+    }
+
+    private CustomerDTO toDtoWithPreferences(Customer customer) {
+        CustomerDTO dto = CustomerMapper.toDto(customer);
+        if (preferenceRepository != null && dto != null && customer.getId() != null) {
+            preferenceRepository.findByCustomerId(customer.getId())
+                    .map(SchedulingPreferenceMapper::toDto)
+                    .ifPresent(dto::setSchedulingPreference);
+        }
+        return dto;
     }
 }

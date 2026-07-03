@@ -60,6 +60,15 @@ public class CategoryEvaluator implements ZoneEvaluator {
     }
 
     private String normalize(String category) {
-        return category == null ? null : category.trim().toLowerCase();
+        if (category == null) {
+            return null;
+        }
+
+        String normalized = category.trim().toLowerCase();
+        if (normalized.equals("studying") || normalized.equals("study") || normalized.equals("school")) {
+            return "education";
+        }
+
+        return normalized;
     }
 }
