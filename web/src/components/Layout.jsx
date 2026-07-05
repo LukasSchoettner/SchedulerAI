@@ -8,9 +8,7 @@ export default function Layout() {
         <Link to="/home">Home</Link>
         <Link to="/tasks">Tasks</Link>
         <Link to="/schedule">Schedule</Link>
-        <Link to="/locations">Locations</Link>
-        <Link to="/customer">Settings</Link>
-        <Link to="/onboarding/scheduling">Scheduler Setup</Link>
+        <Link to="/settings">Settings</Link>
       </nav>
       <main className={styles.main}>
         <Outlet />

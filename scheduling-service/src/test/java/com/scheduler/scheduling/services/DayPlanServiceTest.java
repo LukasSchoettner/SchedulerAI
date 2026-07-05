@@ -123,6 +123,35 @@ class DayPlanServiceTest {
     }
 
     @Test
+    void regenerationDoesNotMarkUnchangedConfirmedPlanAsChanged() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.KEPT);
+        plan.setPlanDate(date);
+        plan.setStatus(DayPlanStatus.CONFIRMED);
+        plan.setPlanSignature(String.join("|",
+                "44",
+                LocalDateTime.of(2026, 7, 4, 10, 0).toString(),
+                LocalDateTime.of(2026, 7, 4, 10, 30).toString(),
+                DayPlanItemStatus.KEPT.name(),
+                "Grocery shopping",
+                "old-format-extra-field"));
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class))).thenReturn(schedule(
+                flexibleTask(44L, "Grocery shopping", "Duty"),
+                slot(date.atTime(10, 0), date.atTime(10, 30)),
+                flexibleTask(45L, "Ignored", "Health"),
+                slot(date.plusDays(1).atTime(8, 0), date.plusDays(1).atTime(8, 30))
+        ));
+
+        var response = service.regenerate(123L, 10L);
+
+        assertThat(response.changedFromConfirmed()).isFalse();
+        assertThat(response.status()).isEqualTo(DayPlanStatus.GENERATED);
+        assertThat(response.items()).extracting("status").containsExactly(DayPlanItemStatus.PLANNED);
+    }
+
+    @Test
     void keepFreeCreatesFixedFreeTimeTaskForCustomer() {
         DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
         when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));

@@ -284,8 +284,8 @@ function CustomerPage() {
                     <button onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')}>
                         {mode === 'edit' ? 'Cancel' : 'Edit Profile'}
                     </button>
-                    <button onClick={() => navigate('/onboarding/scheduling')}>
-                        Scheduling Preferences
+                    <button onClick={() => navigate('/settings/scheduler')}>
+                        Scheduler Preferences
                     </button>
                 </div>
 

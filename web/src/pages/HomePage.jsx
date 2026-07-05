@@ -1,11 +1,16 @@
-// src/pages/HomePage.jsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import useDayPlan from '../hooks/useDayPlan';
+import MorningBriefingPanel from '../components/day-plan/MorningBriefingPanel';
+import NextTaskCard from '../components/day-plan/NextTaskCard';
+import TodayPlanPreview from '../components/day-plan/TodayPlanPreview';
+import { formatDayLabel } from '../components/day-plan/dayPlanUtils';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const dayPlanState = useDayPlan();
     const [profile, setProfile] = useState(null);
     const [taskCount, setTaskCount] = useState(null);
     const [locationCount, setLocationCount] = useState(null);
@@ -31,53 +36,65 @@ export default function HomePage() {
 
     return (
         <div className={styles.container}>
-            <h2>Welcome{profile ? `, ${profile.customername}` : ''}!</h2>
-            <p className={styles.subtitle}>
-                Plan tasks with fixed commitments, category priorities, scheduling zones, and a daily briefing before you start the day.
-            </p>
+            <header className={styles.hero}>
+                <div>
+                    <span className={styles.eyebrow}>Home</span>
+                    <h2>Good day{profile ? `, ${profile.customername}` : ''}.</h2>
+                    <p>{formatDayLabel(dayPlanState.dateKey)} - Review today's plan and see what comes next.</p>
+                </div>
+                <button type="button" className={styles.logoutBtn} onClick={handleLogout}>Logout</button>
+            </header>
 
-            <div className={styles.cardList}>
-                <div className={styles.card}>
-                    <h4>Tasks</h4>
-                    <span className={styles.meta}>Create fixed, flexible, recurring, and project tasks</span>
-                    <p className={styles.count}>
-                        {taskCount === null ? '...' : taskCount}
-                    </p>
-                    <Link to="/tasks">View</Link>
+            <section className={styles.dashboardGrid}>
+                <div className={styles.mainColumn}>
+                    <MorningBriefingPanel
+                        variant="home"
+                        dayPlan={dayPlanState.dayPlan}
+                        activeItems={dayPlanState.activeItems}
+                        skippedCount={dayPlanState.skippedCount}
+                        loading={dayPlanState.loading}
+                        error={dayPlanState.error}
+                        onConfirm={dayPlanState.confirmDayPlan}
+                        onRegenerate={dayPlanState.regenerateDayPlan}
+                    />
+                    <TodayPlanPreview items={dayPlanState.activeItems} maxItems={5} />
                 </div>
 
-                <div className={styles.card}>
-                    <h4>Locations</h4>
-                    <span className={styles.meta}>Saved places for travel-aware planning</span>
-                    <p className={styles.count}>
-                        {locationCount === null ? '...' : locationCount}
-                    </p>
-                    <Link to="/locations">View</Link>
-                </div>
-
-                <div className={styles.card}>
-                    <h4>Schedule</h4>
-                    <span className={styles.meta}>Week/day calendar with daily briefing</span>
-                    <p className={styles.count}>Ready</p>
-                    <Link to="/schedule">View</Link>
-                </div>
-
-                <div className={styles.card}>
-                    <h4>Scheduler Setup</h4>
-                    <span className={styles.meta}>Category priority, quiet hours, zones, and pauses</span>
-                    <p className={styles.count}>MVP</p>
-                    <Link to="/onboarding/scheduling">Configure</Link>
-                </div>
-
-                <div className={styles.card}>
-                    <h4>Notifications</h4>
-                    <span className={styles.meta}>Reminder fields exist; push notification UI is future work</span>
-                    <p className={styles.count}>Planned</p>
-                    <Link to="/tasks">Set reminders</Link>
-                </div>
-            </div>
-
-            <button onClick={handleLogout}>Logout</button>
+                <aside className={styles.sideColumn}>
+                    <NextTaskCard
+                        items={dayPlanState.activeItems}
+                        onComplete={dayPlanState.completeItem}
+                    />
+                    <QuickLinks taskCount={taskCount} locationCount={locationCount} />
+                </aside>
+            </section>
         </div>
+    );
+}
+
+function QuickLinks({ taskCount, locationCount }) {
+    return (
+        <section className={styles.quickLinks}>
+            <div>
+                <span className={styles.eyebrow}>Quick links</span>
+                <h3>Where to go next</h3>
+            </div>
+            <div className={styles.linkGrid}>
+                <QuickLink to="/tasks" title="Add task" meta={`${taskCount ?? '...'} tasks`} />
+                <QuickLink to="/schedule" title="Open full schedule" meta="Adjust today's timeline" />
+                <QuickLink to="/settings/scheduler" title="Scheduler preferences" meta="Priorities, pauses, zones" />
+                <QuickLink to="/settings/locations" title="Saved locations" meta={`${locationCount ?? '...'} saved`} />
+                <QuickLink to="/settings/zones" title="Zones" meta="Scheduling windows" />
+            </div>
+        </section>
+    );
+}
+
+function QuickLink({ to, title, meta }) {
+    return (
+        <Link className={styles.quickLink} to={to}>
+            <strong>{title}</strong>
+            <span>{meta}</span>
+        </Link>
     );
 }

@@ -17,9 +17,9 @@ function LoginPage() {
             }
             try {
                 const status = await api.get('/customers/preferences/onboarding-status');
-                navigate(status.data?.completed ? '/home' : '/onboarding/scheduling');
+                navigate(status.data?.completed ? '/home' : '/settings/scheduler');
             } catch {
-                navigate('/onboarding/scheduling');
+                navigate('/settings/scheduler');
             }
         } catch (err) {
             console.error('Login failed:', err);

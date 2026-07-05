@@ -22,9 +22,9 @@ function FrontPage() {
     const goToNextPage = async () => {
         try {
             const status = await api.get('/customers/preferences/onboarding-status');
-            navigate(status.data?.completed ? '/home' : '/onboarding/scheduling');
+            navigate(status.data?.completed ? '/home' : '/settings/scheduler');
         } catch {
-            navigate('/onboarding/scheduling');
+            navigate('/settings/scheduler');
         }
     };
 
@@ -68,7 +68,7 @@ function FrontPage() {
             // If your back-end returns a token upon registration, store it:
             localStorage.setItem('token', response.data.token);
 
-            navigate('/onboarding/scheduling');
+            navigate('/settings/scheduler');
         } catch (err) {
             console.error('Register failed', err);
             alert('Register failed');

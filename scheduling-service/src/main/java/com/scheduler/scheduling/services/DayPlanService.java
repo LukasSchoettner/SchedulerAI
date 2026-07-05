@@ -65,7 +65,7 @@ public class DayPlanService {
                     return created;
                 });
 
-        String confirmedSignature = plan.getStatus() == DayPlanStatus.CONFIRMED ? plan.getPlanSignature() : null;
+        String confirmedSignature = plan.getStatus() == DayPlanStatus.CONFIRMED ? signatureFor(activeItems(plan)) : null;
         Set<Long> skippedTaskIds = plan.getItems().stream()
                 .filter(item -> item.getStatus() == DayPlanItemStatus.SKIPPED)
                 .map(DayPlanItem::getTaskId)
@@ -86,11 +86,9 @@ public class DayPlanService {
 
         plan.setGeneratedAt(LocalDateTime.now());
         plan.setStatus(DayPlanStatus.GENERATED);
-        plan.setPlanSignature(nextSignature);
-        plan.setFreeGapMinutes(freeMinutesBetween(generatedItems));
-        plan.setTightSpotSummary(tightSpotSummary(generatedItems));
         plan.setChangedFromConfirmed(confirmedSignature != null && !confirmedSignature.equals(nextSignature));
         plan.replaceItems(generatedItems);
+        refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
 
@@ -106,7 +104,7 @@ public class DayPlanService {
                     item.setStatus(DayPlanItemStatus.KEPT);
                     item.setActionSource(DayPlanActionSource.USER_CONFIRMED);
                 });
-        plan.setPlanSignature(signatureFor(activeItems(plan)));
+        refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
 
@@ -117,7 +115,7 @@ public class DayPlanService {
         item.setStatus(DayPlanItemStatus.SKIPPED);
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
         item.setNotes("Skipped for " + plan.getPlanDate());
-        plan.setPlanSignature(signatureFor(activeItems(plan)));
+        refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
 
@@ -136,7 +134,7 @@ public class DayPlanService {
                     .build());
         }
 
-        plan.setPlanSignature(signatureFor(activeItems(plan)));
+        refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
 
@@ -169,7 +167,7 @@ public class DayPlanService {
         item.setStatus(DayPlanItemStatus.FREE_TIME);
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
         item.setNotes("Reserved from daily briefing");
-        plan.setPlanSignature(signatureFor(activeItems(plan)));
+        refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
 
@@ -272,9 +270,17 @@ public class DayPlanService {
                         String.valueOf(item.getTaskId()),
                         String.valueOf(item.getStartDateTime()),
                         String.valueOf(item.getEndDateTime()),
-                        String.valueOf(item.getStatus()),
-                        String.valueOf(item.getTitleSnapshot())))
+                        String.valueOf(item.getTitleSnapshot()),
+                        String.valueOf(item.getCategorySnapshot()),
+                        String.valueOf(item.getTaskTypeSnapshot())))
                 .collect(Collectors.joining("::"));
+    }
+
+    private void refreshPlanSummary(DayPlan plan) {
+        List<DayPlanItem> active = activeItems(plan);
+        plan.setPlanSignature(signatureFor(active));
+        plan.setFreeGapMinutes(freeMinutesBetween(plan.getItems()));
+        plan.setTightSpotSummary(tightSpotSummary(plan.getItems()));
     }
 
     private Integer freeMinutesBetween(List<DayPlanItem> items) {

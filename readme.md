@@ -20,9 +20,9 @@ Use the Register form to create a fresh account, then log in and try the main wo
 
 1. Create tasks.
 2. Add saved locations.
-3. Configure scheduler setup: category priority, normal planning time, zones, and pauses.
-4. Generate a schedule.
-5. Review the morning briefing, confirm the generated day plan, skip tasks for today if needed, reserve `Free time`, and mark scheduled tasks complete.
+3. Configure Scheduler Preferences: category priority, normal planning time, zones, and pauses.
+4. Open Home to review the morning briefing and confirm today's generated day plan.
+5. Use Schedule to correct the detailed timeline, skip tasks for today if needed, reserve `Free time`, mark scheduled tasks complete, and preview the proposed week.
 
 For evaluator-facing instructions, see [HAND_IN.md](HAND_IN.md).
 For release notes and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
@@ -53,8 +53,9 @@ The current build supports:
 - Scheduler onboarding for category priority ranking, normal planning time, optional zone setup, and pause duration.
 - Generalized zones with a primary category, secondary categories, strict/preferred behavior, and priority override.
 - Schedule generation with fixed tasks placed first, flexible tasks guided by zones, category priority, task priority, deadlines, and pauses.
-- Week/day calendar views with category filters and automatic visible time range.
-- Morning briefing panel and detail view showing the focused day plan in chronological order.
+- Home daily dashboard with morning briefing, next task, today-at-a-glance preview, and quick links.
+- Schedule correction workspace with the detailed Today timeline plus Week calendar view, category filters, and automatic visible time range.
+- Settings area for profile, Scheduler Preferences, zones, saved locations, and notification placeholder settings.
 - Backend-persisted `DayPlan` and `DayPlanItem` records in the scheduling service.
 - Morning briefing actions backed by API calls:
   - fixed tasks can be kept, opened, or marked completed;
@@ -78,9 +79,11 @@ Notifications are not a completed user-facing feature yet. The notification serv
 - "Skip today" is a day-plan decision. It does not delete, complete, or globally cancel the backend task.
 - The scheduler is heuristic-based, not a full mathematical constraint optimizer.
 
-## Morning Briefing And Confirmed Plans
+## Daily Workflow And Confirmed Plans
 
-The schedule page automatically loads today's persisted day plan. If none exists, it generates and persists one. The morning briefing is shown directly on the schedule page above the chronological plan and weekly calendar. The briefing is scoped to the focused day, not the whole generated week, so it does not mix in fixed tasks from other days.
+Home automatically loads today's persisted day plan. If none exists, it generates and persists one. Home is the main daily review surface: it shows the morning briefing, next upcoming task, and a compact today-at-a-glance preview.
+
+Schedule is the correction and planning workspace. It still loads the same persisted day plan, but it shows a compact status banner instead of duplicating the full morning briefing. The Today view contains the chronological timeline and task actions. The Week view contains the proposed weekly calendar, category filters, and schedule statistics.
 
 The day plan is displayed chronologically. Each scheduled item has a dropdown with actions that match the task type. Skipping a flexible task updates the backend day-plan item as `SKIPPED`, keeps the underlying task pending, and prevents that task from reappearing when the same day is regenerated.
 
