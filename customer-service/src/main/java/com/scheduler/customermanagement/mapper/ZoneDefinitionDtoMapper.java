@@ -15,6 +15,9 @@ public interface ZoneDefinitionDtoMapper {
     @Mapping(target="allowedCategories",     source="allowedCategories")
     @Mapping(target="excludedCategories",    source="excludedCategories")
     @Mapping(target="priorityOverrideThreshold", source="priorityOverrideThreshold")
+    @Mapping(target="primaryCategory",       source="primaryCategory")
+    @Mapping(target="secondaryCategories",   source="secondaryCategories")
+    @Mapping(target="behaviorMode",          source="behaviorMode")
     ZoneDefinitionDTO toDto(ZoneDefinition entity);
 
     ZoneDefinition toDomain(ZoneDefinitionDTO dto);

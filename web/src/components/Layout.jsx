@@ -7,10 +7,10 @@ export default function Layout() {
       <nav className={styles.nav}>
         <Link to="/home">Home</Link>
         <Link to="/tasks">Tasks</Link>
-        <Link to="/customer">Customer</Link>
         <Link to="/schedule">Schedule</Link>
         <Link to="/locations">Locations</Link>
-        <Link to="/onboarding/scheduling">Preferences</Link>
+        <Link to="/customer">Settings</Link>
+        <Link to="/onboarding/scheduling">Scheduler Setup</Link>
       </nav>
       <main className={styles.main}>
         <Outlet />

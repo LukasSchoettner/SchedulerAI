@@ -3,35 +3,62 @@ package com.scheduler.commoncode.mappers;
 import com.scheduler.commoncode.dto.ZoneDefinitionDTO;
 import com.scheduler.customermanagement.grpc.base.ZoneDefinitionProto;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 
 @Mapper(componentModel = "spring", uses = LocalTimeMapper.class)
 public interface ZoneDefinitionDtoMapperCom {
 
-    /** proto → DTO is straightforward: copy the generated list into your Set<String>. */
-    @Mapping(target="allowedCategories",  source="allowedCategoriesList")
-    @Mapping(target="excludedCategories", source="excludedCategoriesList")
-    ZoneDefinitionDTO toDto(ZoneDefinitionProto proto);
+    default ZoneDefinitionDTO toDto(ZoneDefinitionProto proto) {
+        if (proto == null) {
+            return null;
+        }
+        ZoneDefinitionDTO dto = new ZoneDefinitionDTO();
+        dto.setId(proto.getId());
+        dto.setTitle(proto.getTitle());
+        dto.setDayMask(proto.getDayMask());
+        dto.setStartTime(LocalTime.parse(proto.getStartTime()));
+        dto.setEndTime(LocalTime.parse(proto.getEndTime()));
+        dto.setAllowedCategories(new HashSet<>(proto.getAllowedCategoriesList()));
+        dto.setExcludedCategories(new HashSet<>(proto.getExcludedCategoriesList()));
+        dto.setPriorityOverrideThreshold(
+                proto.getPriorityOverrideThreshold() > 0
+                        ? proto.getPriorityOverrideThreshold()
+                        : null
+        );
+        dto.setPrimaryCategory(proto.getPrimaryCategory().isBlank() ? null : proto.getPrimaryCategory());
+        dto.setSecondaryCategories(new HashSet<>(proto.getSecondaryCategoriesList()));
+        dto.setBehaviorMode(proto.getBehaviorMode().isBlank() ? "STRICT" : proto.getBehaviorMode());
+        return dto;
+    }
 
-    /**
-     * DTO → proto must use the builder’s addAll methods rather than MapStruct’s default list
-     * instantiation.  We do that by hand in this default method.
-     */
     default ZoneDefinitionProto toProto(ZoneDefinitionDTO dto) {
-        var b = ZoneDefinitionProto.newBuilder()
+        var builder = ZoneDefinitionProto.newBuilder()
                 .setId(dto.getId())
                 .setTitle(dto.getTitle())
                 .setDayMask(dto.getDayMask())
-                // format LocalTime → String:
                 .setStartTime(dto.getStartTime().format(DateTimeFormatter.ISO_LOCAL_TIME))
-                .setEndTime  (dto.getEndTime()  .format(DateTimeFormatter.ISO_LOCAL_TIME))
-                .setPriorityOverrideThreshold(dto.getPriorityOverrideThreshold())
-                .setZoneConfigId(0L); // <-- wire up parent ID as you see fit
+                .setEndTime(dto.getEndTime().format(DateTimeFormatter.ISO_LOCAL_TIME))
+                .setPriorityOverrideThreshold(dto.getPriorityOverrideThreshold() != null
+                        ? dto.getPriorityOverrideThreshold()
+                        : 0)
+                .setZoneConfigId(0L);
 
-        if (dto.getAllowedCategories()   != null) b.addAllAllowedCategories(dto.getAllowedCategories());
-        if (dto.getExcludedCategories() != null) b.addAllExcludedCategories(dto.getExcludedCategories());
-        return b.build();
+        if (dto.getAllowedCategories() != null) {
+            builder.addAllAllowedCategories(dto.getAllowedCategories());
+        }
+        if (dto.getExcludedCategories() != null) {
+            builder.addAllExcludedCategories(dto.getExcludedCategories());
+        }
+        if (dto.getPrimaryCategory() != null) {
+            builder.setPrimaryCategory(dto.getPrimaryCategory());
+        }
+        if (dto.getSecondaryCategories() != null) {
+            builder.addAllSecondaryCategories(dto.getSecondaryCategories());
+        }
+        builder.setBehaviorMode(dto.getBehaviorMode() != null ? dto.getBehaviorMode() : "STRICT");
+        return builder.build();
     }
 }

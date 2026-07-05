@@ -42,6 +42,9 @@ message ZoneDefinitionProto {
   repeated string excludedCategories = 7;
   int32 priorityOverrideThreshold = 8;
   int64 zoneConfigId = 9; // reference to the parent config
+  string primaryCategory = 10;
+  repeated string secondaryCategories = 11;
+  string behaviorMode = 12;
 }
 
 // For adding or updating a single zone definition
@@ -54,6 +57,9 @@ message ZoneDefinitionCreateRequest {
   repeated string allowedCategories = 6;
   repeated string excludedCategories = 7;
   int32 priorityOverrideThreshold = 8;
+  string primaryCategory = 9;
+  repeated string secondaryCategories = 10;
+  string behaviorMode = 11;
 }
 
 // gRPC service definition

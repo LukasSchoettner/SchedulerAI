@@ -92,7 +92,10 @@ class ZoneServiceTest {
                 LocalTime.of(11, 30),
                 Set.of("work"),
                 Set.of("errands"),
-                4
+                4,
+                "Work",
+                Set.of("Duty", "Health"),
+                "PREFERRED"
         );
 
         when(configRepo.findById(10L)).thenReturn(Optional.of(owned));
@@ -109,9 +112,12 @@ class ZoneServiceTest {
         assertThat(saved.getDayMask()).isEqualTo(62);
         assertThat(saved.getStartTime()).isEqualTo(LocalTime.of(10, 0));
         assertThat(saved.getEndTime()).isEqualTo(LocalTime.of(11, 30));
-        assertThat(saved.getAllowedCategories()).containsExactly("work");
+        assertThat(saved.getAllowedCategories()).containsExactlyInAnyOrder("Work", "Duty", "Health");
         assertThat(saved.getExcludedCategories()).containsExactly("errands");
         assertThat(saved.getPriorityOverrideThreshold()).isEqualTo(4);
+        assertThat(saved.getPrimaryCategory()).isEqualTo("Work");
+        assertThat(saved.getSecondaryCategories()).containsExactlyInAnyOrder("Duty", "Health");
+        assertThat(saved.getBehaviorMode()).isEqualTo("PREFERRED");
     }
 
     private ZoneConfiguration config(Long id, Long customerId, boolean active) {

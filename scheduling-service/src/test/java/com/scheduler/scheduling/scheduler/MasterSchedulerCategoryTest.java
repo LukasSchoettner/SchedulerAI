@@ -15,6 +15,7 @@ import com.scheduler.scheduling.models.TimeSlot;
 import com.scheduler.scheduling.strategy.SchedulingStrategy;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -189,7 +190,7 @@ class MasterSchedulerCategoryTest {
     @Test
     void zonePriorityOverrideAllowsHighPriorityFlexibleTasks() {
         FlexibleTaskDTO health = flexibleTask("Health");
-        health.setPriority(3);
+        health.setPriority(5);
         CustomerDTO customer = customerWithZones(List.of(
                 zone("Work with override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 3)
         ));
@@ -204,6 +205,104 @@ class MasterSchedulerCategoryTest {
         );
 
         assertThat(scheduled).hasSize(1);
+    }
+
+    @Test
+    void generalizedStrictZoneRejectsUnrelatedFlexibleTasksBelowOverrideThreshold() {
+        FlexibleTaskDTO leisure = flexibleTask("Leisure");
+        leisure.setPriority(4);
+        CustomerDTO customer = customerWithZones(List.of(
+                generalizedZone("Work focus", "Work", Set.of("Duty"), "STRICT", 5)
+        ));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(leisure),
+                null
+        );
+
+        assertThat(scheduled).isEmpty();
+    }
+
+    @Test
+    void generalizedPreferredZoneAllowsOtherCategoriesAfterPreferenceFallback() {
+        FlexibleTaskDTO leisure = flexibleTask("Leisure");
+        leisure.setPriority(1);
+        CustomerDTO customer = customerWithZones(List.of(
+                generalizedZone("Preferred work", "Work", Set.of("Duty"), "PREFERRED", null)
+        ));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(leisure),
+                null
+        );
+
+        assertThat(scheduled).hasSize(1);
+    }
+
+    @Test
+    void generalizedZoneFallsBackFromPrimaryToSecondaryWhenPrimaryDoesNotFit() {
+        FlexibleTaskDTO work = flexibleTask("Work");
+        work.setTitle("Too large work task");
+        work.setEstimatedDuration(10_000);
+        FlexibleTaskDTO duty = flexibleTask("Duty");
+        duty.setTitle("Duty fallback");
+        CustomerDTO customer = customerWithZones(List.of(
+                generalizedZone("Work then duty", "Work", Set.of("Duty"), "STRICT", null)
+        ));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(work, duty),
+                null
+        );
+
+        assertThat(scheduled).hasSize(1);
+        assertThat(scheduled.get(0).getTask().getTitle()).isEqualTo("Duty fallback");
+    }
+
+    @Test
+    void legacyPriorityOverrideThreeDoesNotAllowNormalPriorityTasksIntoOtherCategoryZones() {
+        FlexibleTaskDTO social = flexibleTask("Social");
+        social.setPriority(3);
+        CustomerDTO customer = customerWithZones(List.of(
+                zone("Work with old override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 3)
+        ));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(10, 0));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(social),
+                null
+        );
+
+        assertThat(scheduled).isEmpty();
+    }
+
+    @Test
+    void zeroPriorityOverrideMeansStrictZone() {
+        FlexibleTaskDTO leisure = flexibleTask("Leisure");
+        leisure.setPriority(5);
+        CustomerDTO customer = customerWithZones(List.of(
+                zone("Work strict via proto zero", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 0)
+        ));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(10, 0));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(leisure),
+                null
+        );
+
+        assertThat(scheduled).isEmpty();
     }
 
     @Test
@@ -244,6 +343,56 @@ class MasterSchedulerCategoryTest {
         assertThat(urgentScheduled.get(0).getAssignedSlots())
                 .allSatisfy(slot -> assertThat(slot.getStart().toLocalTime())
                         .isBefore(LocalTime.of(8, 0)));
+    }
+
+    @Test
+    void weekdayCategoryZonesDoNotBlockSameCategoryOnSaturdayDefaultTime() {
+        LocalDateTime saturday = nextDateTime(DayOfWeek.SATURDAY, LocalTime.of(15, 0));
+        FlexibleTaskDTO duty = flexibleTask("Duty");
+        duty.setTitle("Saturday duty");
+        duty.setEarliestStartDateTime(saturday);
+        duty.setLatestEndDateTime(saturday.plusHours(3));
+        duty.setDueDate(saturday.plusHours(3));
+
+        CustomerDTO customer = customerWithZones(List.of(
+                zone("Weekday duty", 31, LocalTime.of(19, 0), LocalTime.of(20, 0), Set.of("Duty"))
+        ));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(21, 0));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(duty),
+                null
+        );
+
+        assertThat(scheduled).hasSize(1);
+        assertThat(scheduled.get(0).getAssignedSlots().get(0).getStart().getDayOfWeek())
+                .isEqualTo(DayOfWeek.SATURDAY);
+    }
+
+    @Test
+    void urgentFlexibleTasksPreferNormalCategoryZonesBeforeQuietFallback() {
+        FlexibleTaskDTO work = flexibleTask("Work");
+        work.setPriority(5);
+        CustomerDTO customer = customerWithZones(List.of(
+                quietZone("Quiet morning", LocalTime.of(0, 0), LocalTime.of(8, 0)),
+                zone("Work day", 127, LocalTime.of(8, 0), LocalTime.of(17, 0), Set.of("Work"), 3)
+        ));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(0, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(23, 59));
+        customer.setSchedulingPreference(preferences(CATEGORIES_DEFAULT(), 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(
+                customer,
+                List.of(work),
+                null
+        );
+
+        assertThat(scheduled).hasSize(1);
+        assertThat(scheduled.get(0).getAssignedSlots().get(0).getStart().toLocalTime())
+                .isAfterOrEqualTo(LocalTime.of(8, 0));
     }
 
     private SchedulingStrategy<FixedTaskDTO> fixedStrategy() {
@@ -320,6 +469,28 @@ class MasterSchedulerCategoryTest {
         return zone;
     }
 
+    private ZoneDefinitionDTO generalizedZone(
+            String title,
+            String primaryCategory,
+            Set<String> secondaryCategories,
+            String behaviorMode,
+            Integer priorityOverrideThreshold
+    ) {
+        ZoneDefinitionDTO zone = new ZoneDefinitionDTO();
+        zone.setTitle(title);
+        zone.setDayMask(127);
+        zone.setStartTime(LocalTime.of(0, 0));
+        zone.setEndTime(LocalTime.of(23, 59));
+        zone.setPrimaryCategory(primaryCategory);
+        zone.setSecondaryCategories(secondaryCategories);
+        zone.setAllowedCategories(new java.util.LinkedHashSet<>(List.of(primaryCategory)));
+        zone.getAllowedCategories().addAll(secondaryCategories);
+        zone.setExcludedCategories(Set.of());
+        zone.setBehaviorMode(behaviorMode);
+        zone.setPriorityOverrideThreshold(priorityOverrideThreshold);
+        return zone;
+    }
+
     private FlexibleTaskDTO flexibleTask(String category) {
         FlexibleTaskDTO task = new FlexibleTaskDTO();
         task.setTitle("Training");
@@ -332,6 +503,15 @@ class MasterSchedulerCategoryTest {
         task.setDueDate(LocalDateTime.now().plusDays(7));
         task.setReminderDate(LocalDateTime.now().plusHours(1));
         return task;
+    }
+
+    private LocalDateTime nextDateTime(DayOfWeek dayOfWeek, LocalTime time) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime candidate = now.toLocalDate().atTime(time);
+        while (candidate.getDayOfWeek() != dayOfWeek || !candidate.isAfter(now)) {
+            candidate = candidate.plusDays(1);
+        }
+        return candidate;
     }
 
     private FixedTaskDTO fixedTask() {

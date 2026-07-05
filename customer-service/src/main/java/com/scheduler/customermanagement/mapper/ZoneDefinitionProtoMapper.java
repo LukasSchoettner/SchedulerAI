@@ -19,7 +19,10 @@ public class ZoneDefinitionProtoMapper {
         def.setEndTime(LocalTime.parse(proto.getEndTime()));
         def.setAllowedCategories(new HashSet<>(proto.getAllowedCategoriesList()));
         def.setExcludedCategories(new HashSet<>(proto.getExcludedCategoriesList()));
-        def.setPriorityOverrideThreshold(proto.getPriorityOverrideThreshold());
+        def.setPriorityOverrideThreshold(proto.getPriorityOverrideThreshold() > 0 ? proto.getPriorityOverrideThreshold() : null);
+        def.setPrimaryCategory(proto.getPrimaryCategory().isBlank() ? null : proto.getPrimaryCategory());
+        def.setSecondaryCategories(new HashSet<>(proto.getSecondaryCategoriesList()));
+        def.setBehaviorMode(proto.getBehaviorMode().isBlank() ? "STRICT" : proto.getBehaviorMode());
         def.setZoneConfigId(proto.getZoneConfigId());
         return def;
     }
@@ -40,6 +43,13 @@ public class ZoneDefinitionProtoMapper {
         if (entity.getExcludedCategories() != null) {
             builder.addAllExcludedCategories(entity.getExcludedCategories());
         }
+        if (entity.getPrimaryCategory() != null) {
+            builder.setPrimaryCategory(entity.getPrimaryCategory());
+        }
+        if (entity.getSecondaryCategories() != null) {
+            builder.addAllSecondaryCategories(entity.getSecondaryCategories());
+        }
+        builder.setBehaviorMode(entity.getBehaviorMode() != null ? entity.getBehaviorMode() : "STRICT");
 
         return builder.build();
     }

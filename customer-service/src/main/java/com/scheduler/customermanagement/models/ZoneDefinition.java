@@ -39,6 +39,15 @@ public class ZoneDefinition {
 
     private Integer priorityOverrideThreshold;
 
+    private String primaryCategory;
+
+    @ElementCollection
+    @CollectionTable(name = "zone_secondary_categories", joinColumns = @JoinColumn(name = "zone_definition_id"))
+    @Column(name = "category")
+    private Set<String> secondaryCategories = new HashSet<>();
+
+    private String behaviorMode = "STRICT";
+
     @Column(name = "zone_config_id", nullable = false)
     private Long zoneConfigId;
 
@@ -56,4 +65,3 @@ public class ZoneDefinition {
     }
 
 }
-

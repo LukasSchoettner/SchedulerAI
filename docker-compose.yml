@@ -85,6 +85,26 @@ services:
     networks:
       - scheduler-net
 
+  postgres-scheduling:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: scheduling_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    volumes:
+      - scheduling_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d scheduling_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - scheduler-net
+
 
   # ========== Services ==========
 
@@ -179,10 +199,18 @@ services:
     expose:
       - "9090"
     depends_on:
-      - task-service
-      - customer-service
-      - routing-service
+      postgres-scheduling:
+        condition: service_healthy
+      task-service:
+        condition: service_started
+      customer-service:
+        condition: service_started
+      routing-service:
+        condition: service_started
     environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-scheduling:5432/scheduling_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
       JWT_SECRET: "CHANGE_THIS_TO_A_LONG_SECURE_KEY_12345"
       JWT_EXPIRATION_MS: 3600000
     restart: unless-stopped
@@ -228,3 +256,4 @@ volumes:
   customer_db_data:
   notification_db_data:
   routing_db_data:
+  scheduling_db_data:

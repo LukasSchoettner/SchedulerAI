@@ -14,7 +14,7 @@ const WEEKDAYS = [
     ['Sunday', 64],
 ];
 const ALL_DAYS = 127;
-const PRIORITY_OVERRIDE_THRESHOLD = 3;
+const PRIORITY_OVERRIDE_THRESHOLD = 5;
 const QUIET_OVERRIDE_THRESHOLD = 5;
 const QUIET_ONLY_CATEGORY = '__QUIET_OVERRIDE_ONLY__';
 const QUIET_MORNING_TITLE = 'Quiet hours - morning';
@@ -44,7 +44,9 @@ const EMPTY_DEFINITION = {
     dayMask: 62,
     startTime: '08:00',
     endTime: '17:00',
-    allowedCategories: ['Work'],
+    primaryCategory: 'Work',
+    secondaryCategories: [],
+    behaviorMode: 'STRICT',
     priorityOverride: false,
 };
 
@@ -131,15 +133,16 @@ export default function SchedulingOnboardingPage() {
 
     const toggleDraftCategory = (category) => {
         setDefinitionDraft(prev => {
-            const selected = new Set(prev.allowedCategories);
+            const selected = new Set(prev.secondaryCategories || []);
             if (selected.has(category)) selected.delete(category);
             else selected.add(category);
-            return { ...prev, allowedCategories: [...selected] };
+            selected.delete(prev.primaryCategory);
+            return { ...prev, secondaryCategories: [...selected] };
         });
     };
 
     const addZoneDefinition = () => {
-        if (!definitionDraft.title.trim() || definitionDraft.dayMask === 0 || definitionDraft.allowedCategories.length === 0) {
+        if (!definitionDraft.title.trim() || definitionDraft.dayMask === 0 || !definitionDraft.primaryCategory) {
             return;
         }
         setForm(prev => ({
@@ -274,7 +277,10 @@ function ZoneStep({ form, setField, draft, setDraft, toggleDay, toggleCategory, 
     const quietViolation = quietViolationMessage(draft, form);
     return (
         <div>
-            <h3>Schedule type</h3>
+            <h3>Schedule windows</h3>
+            <p className={styles.helperText}>
+                Fixed tasks block real time. Zones guide flexible tasks by trying a primary category first, then secondary categories.
+            </p>
             <div className={styles.choiceGrid}>
                 <ChoiceButton selected={form.zoneMode === 'DEFAULT'} onClick={() => setField('zoneMode', 'DEFAULT')}>
                     Default open schedule
@@ -308,7 +314,7 @@ function ZoneStep({ form, setField, draft, setDraft, toggleDay, toggleCategory, 
                     </label>
 
                     <div className={styles.definitionEditor}>
-                        <h4>Add time window</h4>
+                        <h4>Add zone window</h4>
                         <label>
                             Window title
                             <input
@@ -344,19 +350,44 @@ function ZoneStep({ form, setField, draft, setDraft, toggleDay, toggleCategory, 
                             selected={bit => (draft.dayMask & bit) !== 0}
                             onToggle={toggleDay}
                         />
+                        <label>
+                            Primary category
+                            <select
+                                value={draft.primaryCategory}
+                                onChange={event => setDraft(prev => ({
+                                    ...prev,
+                                    primaryCategory: event.target.value,
+                                    secondaryCategories: (prev.secondaryCategories || []).filter(category => category !== event.target.value),
+                                }))}
+                            >
+                                {CATEGORIES.map(category => (
+                                    <option key={category} value={category}>{category}</option>
+                                ))}
+                            </select>
+                        </label>
                         <CheckboxGroup
-                            title="Allowed categories"
-                            options={CATEGORIES.map(category => [category, category])}
-                            selected={category => draft.allowedCategories.includes(category)}
+                            title="Secondary categories"
+                            options={CATEGORIES.filter(category => category !== draft.primaryCategory).map(category => [category, category])}
+                            selected={category => (draft.secondaryCategories || []).includes(category)}
                             onToggle={toggleCategory}
                         />
+                        <label>
+                            Window behavior
+                            <select
+                                value={draft.behaviorMode}
+                                onChange={event => setDraft(prev => ({ ...prev, behaviorMode: event.target.value }))}
+                            >
+                                <option value="STRICT">Strict - only selected categories unless urgent override applies</option>
+                                <option value="PREFERRED">Preferred - selected categories first, then other suitable tasks</option>
+                            </select>
+                        </label>
                         <label className={styles.inlineCheck}>
                             <input
                                 type="checkbox"
                                 checked={draft.priorityOverride}
                                 onChange={event => setDraft(prev => ({ ...prev, priorityOverride: event.target.checked }))}
                             />
-                            Allow urgent tasks outside the selected categories
+                            Allow priority 5 tasks outside this zone&apos;s categories
                         </label>
                         <button type="button" onClick={addDefinition}>Add window</button>
                     </div>
@@ -438,7 +469,7 @@ function Summary({ form, overloadOrder, onEdit }) {
                 <SummaryRow label="Quiet time" value={`${quietTimeSummary(form)}; urgent tasks may override`} />
                 <SummaryRow label="Pause" value={formatPause(form.pauseMinutes)} onEdit={() => onEdit('pause')} />
                 <SummaryRow label="Planning style" value="Moderate" />
-                <SummaryRow label="Flexible tasks" value="Automatic" />
+                <SummaryRow label="Flexible tasks" value="Automatic, guided by primary and secondary zone categories" />
                 <SummaryRow label="When crowded" value={`Move lower-ranked categories first: ${overloadOrder.join(' -> ')}`} />
                 <SummaryRow label="Pauses when crowded" value="Keep pauses and move tasks" />
             </div>
@@ -465,8 +496,9 @@ function ZoneDefinitionList({ definitions, onRemove }) {
                 <div key={`${definition.title}-${index}`} className={styles.zoneDefinition}>
                     <strong>{definition.title}</strong>
                     <span>{daysLabel(definition.dayMask)} - {definition.startTime}-{definition.endTime}</span>
-                    <span>{definition.allowedCategories.join(', ')}</span>
-                    <span>{definition.priorityOverride ? 'Urgent override enabled' : 'Strict window'}</span>
+                    <span>Primary: {definition.primaryCategory || primaryFromAllowed(definition)}</span>
+                    <span>Secondary: {(definition.secondaryCategories || []).join(', ') || 'None'}</span>
+                    <span>{definition.behaviorMode === 'PREFERRED' ? 'Preferred window' : 'Strict window'}{definition.priorityOverride ? ', urgent override enabled' : ''}</span>
                     {onRemove && <button type="button" onClick={() => onRemove(index)}>Remove</button>}
                 </div>
             ))}
@@ -543,7 +575,10 @@ async function addDefinitions(zoneId, definitions) {
             dayMask: definition.dayMask,
             startTime: definition.startTime,
             endTime: definition.endTime,
-            allowedCategories: definition.allowedCategories,
+            primaryCategory: definition.primaryCategory || null,
+            secondaryCategories: definition.secondaryCategories || [],
+            behaviorMode: definition.behaviorMode || 'STRICT',
+            allowedCategories: allowedCategoriesForDefinition(definition),
             excludedCategories: definition.excludedCategories || [],
             priorityOverrideThreshold: definition.priorityOverride
                 ? (definition.priorityOverrideThreshold || PRIORITY_OVERRIDE_THRESHOLD)
@@ -594,7 +629,11 @@ function fromSavedDefinition(definition) {
         dayMask: definition.dayMask ?? 127,
         startTime: definition.startTime || '08:00',
         endTime: definition.endTime || '17:00',
-        allowedCategories: definition.allowedCategories?.length ? definition.allowedCategories : [],
+        primaryCategory: definition.primaryCategory || primaryFromAllowed(definition),
+        secondaryCategories: definition.secondaryCategories?.length
+            ? definition.secondaryCategories
+            : secondaryFromAllowed(definition),
+        behaviorMode: definition.behaviorMode || 'STRICT',
         priorityOverride: definition.priorityOverrideThreshold != null,
     };
 }
@@ -628,6 +667,9 @@ function quietDefinition(title, startTime, endTime) {
         endTime,
         allowedCategories: [QUIET_ONLY_CATEGORY],
         excludedCategories: [],
+        primaryCategory: null,
+        secondaryCategories: [],
+        behaviorMode: 'STRICT',
         priorityOverride: true,
         priorityOverrideThreshold: QUIET_OVERRIDE_THRESHOLD,
     };
@@ -641,8 +683,27 @@ function clipDefinitionToPlanningWindow(definition, startTime, endTime) {
         ...definition,
         startTime: clippedStart,
         endTime: clippedEnd,
+        allowedCategories: allowedCategoriesForDefinition(definition),
         excludedCategories: [],
     };
+}
+
+function allowedCategoriesForDefinition(definition) {
+    if (definition.allowedCategories?.length && !definition.primaryCategory) {
+        return definition.allowedCategories;
+    }
+    return [
+        definition.primaryCategory,
+        ...(definition.secondaryCategories || []),
+    ].filter(Boolean);
+}
+
+function primaryFromAllowed(definition) {
+    return definition.allowedCategories?.[0] || 'Work';
+}
+
+function secondaryFromAllowed(definition) {
+    return (definition.allowedCategories || []).slice(1);
 }
 
 function quietWindowFromSavedDefinitions(definitions) {

@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -96,6 +98,7 @@ public class ZoneService {
         ZoneDefinition def = defMapper.toDomain(dto);
         def.setId(null);
         def.setZoneConfigId(configId);
+        normalizeDefinition(def);
         return defMapper.toDto(defRepo.save(def));
     }
 
@@ -114,9 +117,11 @@ public class ZoneService {
         if (dto.getEndTime() != null) existing.setEndTime(dto.getEndTime());
         if (dto.getAllowedCategories() != null) existing.setAllowedCategories(dto.getAllowedCategories());
         if (dto.getExcludedCategories() != null) existing.setExcludedCategories(dto.getExcludedCategories());
-        if (dto.getPriorityOverrideThreshold() != null) {
-            existing.setPriorityOverrideThreshold(dto.getPriorityOverrideThreshold());
-        }
+        if (dto.getPrimaryCategory() != null) existing.setPrimaryCategory(dto.getPrimaryCategory());
+        if (dto.getSecondaryCategories() != null) existing.setSecondaryCategories(dto.getSecondaryCategories());
+        if (dto.getBehaviorMode() != null) existing.setBehaviorMode(dto.getBehaviorMode());
+        existing.setPriorityOverrideThreshold(dto.getPriorityOverrideThreshold());
+        normalizeDefinition(existing);
         return defMapper.toDto(defRepo.save(existing));
     }
 
@@ -141,5 +146,44 @@ public class ZoneService {
         List<ZoneConfiguration> configs = configRepo.findAllByCustomerId(customerId);
         configs.forEach(cfg -> cfg.setActive(false));
         configRepo.saveAll(configs);
+    }
+
+    private Integer normalizePriorityOverrideThreshold(Integer threshold) {
+        return threshold != null && threshold > 0 ? threshold : null;
+    }
+
+    private void normalizeDefinition(ZoneDefinition def) {
+        def.setPriorityOverrideThreshold(normalizePriorityOverrideThreshold(def.getPriorityOverrideThreshold()));
+        def.setBehaviorMode(normalizeBehaviorMode(def.getBehaviorMode()));
+        def.setPrimaryCategory(blankToNull(def.getPrimaryCategory()));
+        if (def.getSecondaryCategories() == null) {
+            def.setSecondaryCategories(new LinkedHashSet<>());
+        }
+        if (def.getAllowedCategories() == null) {
+            def.setAllowedCategories(new LinkedHashSet<>());
+        }
+        if (def.getExcludedCategories() == null) {
+            def.setExcludedCategories(new LinkedHashSet<>());
+        }
+
+        Set<String> derivedAllowed = new LinkedHashSet<>();
+        if (def.getPrimaryCategory() != null) {
+            derivedAllowed.add(def.getPrimaryCategory());
+        }
+        derivedAllowed.addAll(def.getSecondaryCategories());
+        if (!derivedAllowed.isEmpty()) {
+            def.setAllowedCategories(derivedAllowed);
+        }
+    }
+
+    private String normalizeBehaviorMode(String behaviorMode) {
+        if ("PREFERRED".equalsIgnoreCase(behaviorMode)) {
+            return "PREFERRED";
+        }
+        return "STRICT";
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

@@ -22,6 +22,7 @@ enum TaskStatus {
   PENDING = 1;
   COMPLETED = 2;
   DELAYED = 3;
+  CANCELLED = 4;
   // etc.
 }
 
@@ -81,6 +82,9 @@ message TaskCreate {
   // NEW: optional routing / location data
   int64 addressId = 21;    // 0 = no linked address
   string addressText = 22; // human-readable address, optional
+
+  // Internal service-to-service calls may set this explicitly.
+  int64 customerId = 23;
 }
 
 // Main representation of a Task (for reading/updating)

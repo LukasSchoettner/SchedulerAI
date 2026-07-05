@@ -1,6 +1,6 @@
 # Scheduler
 
-This repository contains a Dockerized task scheduler application with a React frontend, Spring Boot microservices, PostgreSQL databases, JWT authentication, task management, saved locations, zone configuration, and schedule generation.
+This repository contains a Dockerized task scheduler application with a React frontend, Spring Boot microservices, PostgreSQL databases, JWT authentication, task management, saved locations, scheduler onboarding, generalized zone configuration, schedule generation, and a morning briefing for reviewing the generated day plan.
 
 ## Current Hand-In Build
 
@@ -20,9 +20,9 @@ Use the Register form to create a fresh account, then log in and try the main wo
 
 1. Create tasks.
 2. Add saved locations.
-3. Configure customer zones and zone definitions.
+3. Configure scheduler setup: category priority, normal planning time, zones, and pauses.
 4. Generate a schedule.
-5. Mark scheduled tasks complete from the calendar.
+5. Review the morning briefing, confirm the generated day plan, skip tasks for today if needed, reserve `Free time`, and mark scheduled tasks complete.
 
 For evaluator-facing instructions, see [HAND_IN.md](HAND_IN.md).
 For release notes and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
@@ -43,11 +43,82 @@ pnpm run build
 docker compose up --build
 ```
 
----
+## Implemented MVP Status
+
+The current build supports:
+
+- Registration/login with JWT authentication.
+- Task creation for fixed, flexible, recurring-style, multi-session, and project-style workflows.
+- Saved locations with membership-based limits.
+- Scheduler onboarding for category priority ranking, normal planning time, optional zone setup, and pause duration.
+- Generalized zones with a primary category, secondary categories, strict/preferred behavior, and priority override.
+- Schedule generation with fixed tasks placed first, flexible tasks guided by zones, category priority, task priority, deadlines, and pauses.
+- Week/day calendar views with category filters and automatic visible time range.
+- Morning briefing panel and detail view showing the focused day plan in chronological order.
+- Backend-persisted `DayPlan` and `DayPlanItem` records in the scheduling service.
+- Morning briefing actions backed by API calls:
+  - fixed tasks can be kept, opened, or marked completed;
+  - flexible tasks can be kept, opened, marked completed, skipped for today, or replaced by a fixed `Free time` block;
+  - future-only actions such as move, shorten, and replace are shown as disabled until occurrence/allocation persistence exists.
+- Confirmed day plans persist per customer and date in PostgreSQL, including chronological scheduled items, free-gap minutes, tight spots, and a plan signature.
+- Skip-today decisions persist in the backend per customer/date. A skipped task stays pending in the task backend, but it is excluded from regeneration for that same day.
+- `Keep this time free` creates a normal fixed `Free time` task through task-service so regenerated schedules keep the slot blocked.
+
+Notifications are not a completed user-facing feature yet. The notification service is part of the Docker stack and tasks have `reminderDate` fields, but there is no finished reminder delivery UI, WebSocket push flow, or in-app notification inbox.
+
+## Important Current Rules
+
+- Fixed tasks block real occupied time.
+- Zones guide flexible task placement; zones do not make whole categories fixed.
+- A strict zone permits primary and secondary categories, plus unrelated priority-5 tasks when override is enabled.
+- A preferred zone tries primary and secondary categories first, then allows other suitable tasks when needed.
+- Weekday-only zones only constrain those weekdays; they no longer block the same category on unrelated days.
+- Category priority affects flexible task ordering, not whether a task is fixed.
+- Fixedness belongs to the individual task type. Zones and categories do not convert flexible tasks into fixed tasks.
+- "Skip today" is a day-plan decision. It does not delete, complete, or globally cancel the backend task.
+- The scheduler is heuristic-based, not a full mathematical constraint optimizer.
+
+## Morning Briefing And Confirmed Plans
+
+The schedule page automatically loads today's persisted day plan. If none exists, it generates and persists one. The morning briefing is shown directly on the schedule page above the chronological plan and weekly calendar. The briefing is scoped to the focused day, not the whole generated week, so it does not mix in fixed tasks from other days.
+
+The day plan is displayed chronologically. Each scheduled item has a dropdown with actions that match the task type. Skipping a flexible task updates the backend day-plan item as `SKIPPED`, keeps the underlying task pending, and prevents that task from reappearing when the same day is regenerated.
+
+`Keep this time free` creates a normal fixed task named `Free time` for the selected slot. This blocks the slot during future schedule generation and survives reloads because it is persisted by task-service.
+
+Confirmed day plans are now backend records owned by scheduling-service. Browser storage is no longer the primary persistence path for confirmations, skip-today decisions, completion updates, or `Free time` reservations.
+
+## Current Limitations
+
+- Day-plan persistence is implemented in scheduling-service, but there is not yet a separate reviewed/evening-check workflow.
+- Regeneration can report that a plan differs from the confirmed signature, but the UI still keeps the review flow intentionally simple.
+- Recurrence is stored as text. There is no durable occurrence model yet, so true per-occurrence skip/move/complete behavior is future work.
+- Move-to-another-day, shorten-duration, and replace-task actions are visible as future actions but disabled in the MVP UI.
+- Notifications are not a completed user-facing feature yet. The notification service is part of the Docker stack and tasks have `reminderDate` fields, but there is no finished reminder delivery UI, WebSocket push flow, or in-app notification inbox.
+- Routing uses an internal distance estimate, not a live external maps API.
+- The scheduler is heuristic-based, not a full mathematical constraint optimizer.
+
+## Evening Check Options
+
+Possible ways to implement the evening check on top of backend day plans:
+
+- Next-login review: when the user opens the app in the evening or the next day, show yesterday/today's confirmed plan and ask about tasks that are still pending.
+- Scheduled in-app reminder: use the notification service to create an evening review reminder that opens a review screen.
+- Calendar-based checklist: store confirmed plans server-side, compare them with completed task statuses, and show only unresolved scheduled blocks.
+- Lightweight MVP: reuse the persisted backend day plan and show unresolved `PLANNED`/`KEPT` items in an evening review panel.
+
+Recommended next step: build the evening review on top of persisted day plans so the user can confirm what was completed without manually marking everything during the day.
+
+## Recommended Next Technical Steps
+
+- Add a recurrence occurrence model so daily/weekly recurring tasks can be skipped, moved, or completed per occurrence.
+- Implement the evening review screen using persisted day plans and task completion status.
+- Productize notifications with an in-app inbox or push/WebSocket delivery.
+- Add browser-level tests for schedule generation, briefing actions, skip-today behavior, and `Free time` reservation.
 
 ## Original Planning Notes
 
-Below is a structured plan that covers architecture, component breakdown, technology choices, and development milestones. This plan is meant to serve as a blueprint to help you organize and implement your dynamic human task scheduler.
+The remaining sections are original planning notes and should be read as background/future direction, not as an exact list of completed product features.
 
 ---
 
@@ -721,6 +792,37 @@ When placing tasks, the scheduler must respect each zone’s constraints. For ea
 - If the day/time is outside any zone definitions, or the zone definitions permit that category, scheduling can proceed.
 
 Essentially, these **zones** define *where, when, and under what conditions* tasks can be slotted. If a customer says “No tasks on Sunday,” that might appear as a dayMask excluding Sunday. If “Sport tasks are only in the morning or evening,” the zone definitions codify that.
+
+---
+
+### 2.4 MVP Clarification: Fixed Tasks vs. Zones
+
+Fixed tasks block real occupied time. Examples include a work shift, doctor appointment, lecture, meeting, or a user-created `Free time` block from the daily briefing. Fixed tasks are placed before flexible scheduling and define which intervals are unavailable.
+
+Zones guide flexible task placement. A zone can prefer Work in the morning, Sport in the evening, Duty tasks during admin hours, or only allow urgent tasks in a protected window. Zones do not make an entire category fixed; fixedness belongs to the individual task.
+
+Work should follow the same rule. Real work shifts are fixed Work tasks, including recurring fixed Work tasks for regular hours and manually entered or imported fixed Work tasks for changing shifts. Flexible work or flextime should be flexible Work tasks. Work zones define preferred or allowed windows for flexible Work tasks; they do not block actual work time by themselves.
+
+### 2.5 Generalized Zones
+
+The MVP zone model supports:
+
+- **primaryCategory**: the first category the scheduler tries in that zone.
+- **secondaryCategories**: backup categories that may fill the zone when no primary task fits or needs the slot.
+- **behaviorMode**: `STRICT` or `PREFERRED`.
+- **priorityOverrideThreshold**: the minimum task priority that may override a strict category restriction.
+
+In a `STRICT` zone, the scheduler tries primary tasks first, then secondary tasks, and only allows unrelated flexible tasks when the priority override threshold is reached. In a `PREFERRED` zone, the scheduler still prefers primary and secondary tasks first, but may place other suitable flexible tasks when preferred tasks do not fit or have no current demand.
+
+Older zones with only `allowedCategories` continue to behave as strict allowed-category windows. New zones derive `allowedCategories` from primary plus secondary categories so older API consumers remain compatible.
+
+### 2.6 Daily Briefing MVP
+
+The daily briefing previews the generated plan before the user works with it. It shows fixed commitments, suggested flexible tasks, scheduled project tasks where available, remaining free time, skipped or delayed tasks where derivable, and tight spots.
+
+The briefing does not offer permanent deletion; deletion belongs in task details. If the user chooses to keep a slot free, the app creates a fixed task named `Free time` for that exact time slot so regeneration does not refill it.
+
+Future enhancements may add weekly Work-hour targets, overtime confirmation once a Work target is exceeded, internal lunch breaks inside fixed Work blocks, calendar import for changing shifts, full unavailable-time blocks, and advanced recurrence occurrence handling. For now, unavailable time can be reserved through fixed tasks such as `Free time`.
 
 ---
 

@@ -10,9 +10,7 @@ import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServic
 @SpringBootApplication(
         exclude = {
                 SecurityAutoConfiguration.class,
-                UserDetailsServiceAutoConfiguration.class,
-                org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class,
-                org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class
+                UserDetailsServiceAutoConfiguration.class
         },
         scanBasePackages = {
                 "com.scheduler.scheduling",       // your service

@@ -47,6 +47,9 @@ function CustomerPage() {
     const [defEndTime, setDefEndTime] = useState('17:00');
     const [defAllowed, setDefAllowed] = useState([]);
     const [defExcluded, setDefExcluded] = useState([]);
+    const [defPrimary, setDefPrimary] = useState('Work');
+    const [defSecondary, setDefSecondary] = useState([]);
+    const [defBehavior, setDefBehavior] = useState('STRICT');
     const [defPriority, setDefPriority] = useState('');
     const [categoryOptions, setCategoryOptions] = useState(getAllCategories());
     const [customCategory, setCustomCategory] = useState('');
@@ -140,9 +143,11 @@ function CustomerPage() {
             setCategoryOptions(normalizeCategoryList([
                 ...getAllCategories(),
                 ...loadedDefinitions.flatMap(def => [
+                    def.primaryCategory,
+                    ...(def.secondaryCategories || []),
                     ...(def.allowedCategories || []),
                     ...(def.excludedCategories || []),
-                ]),
+                ].filter(Boolean)),
             ]));
         } catch (err) {
             console.error('Error fetching definitions:', err);
@@ -167,15 +172,22 @@ function CustomerPage() {
         }
     };
 
-    const definitionPayload = () => ({
+    const definitionPayload = () => {
+        const primary = canonicalizeCategory(defPrimary || 'Work');
+        const secondary = normalizeCategoryList(defSecondary).filter(category => category !== primary);
+        return {
                 title: defTitle,
                 dayMask: defDayMask,
                 startTime: defStartTime,
                 endTime: defEndTime,
-                allowedCategories: normalizeCategoryList(defAllowed),
+                primaryCategory: primary,
+                secondaryCategories: secondary,
+                behaviorMode: defBehavior,
+                allowedCategories: normalizeCategoryList([primary, ...secondary]),
                 excludedCategories: normalizeCategoryList(defExcluded),
                 priorityOverrideThreshold: defPriority === '' ? null : Number(defPriority),
-    });
+        };
+    };
 
     const resetDefinitionForm = () => {
         setEditingDefinitionId(null);
@@ -185,6 +197,9 @@ function CustomerPage() {
         setDefEndTime('17:00');
         setDefAllowed([]);
         setDefExcluded([]);
+        setDefPrimary('Work');
+        setDefSecondary([]);
+        setDefBehavior('STRICT');
         setDefPriority('');
         setCustomCategory('');
     };
@@ -197,6 +212,9 @@ function CustomerPage() {
         setDefEndTime(def.endTime || '17:00');
         setDefAllowed(normalizeCategoryList(def.allowedCategories || []));
         setDefExcluded(normalizeCategoryList(def.excludedCategories || []));
+        setDefPrimary(def.primaryCategory || def.allowedCategories?.[0] || 'Work');
+        setDefSecondary(normalizeCategoryList(def.secondaryCategories?.length ? def.secondaryCategories : (def.allowedCategories || []).slice(1)));
+        setDefBehavior(def.behaviorMode || 'STRICT');
         setDefPriority(def.priorityOverrideThreshold ?? '');
     };
 
@@ -231,6 +249,14 @@ function CustomerPage() {
 
     const displayCategories = (categories = []) =>
         normalizeCategoryList(categories).join(', ') || 'Any category';
+
+    const displayZoneTargets = (def) => {
+        const primary = def.primaryCategory || def.allowedCategories?.[0] || 'Any';
+        const secondary = def.secondaryCategories?.length
+            ? def.secondaryCategories
+            : (def.allowedCategories || []).slice(1);
+        return `primary: ${primary}; secondary: ${displayCategories(secondary)}`;
+    };
 
     useEffect(() => {
         fetchData().finally(() => setLoading(false));
@@ -348,7 +374,10 @@ function CustomerPage() {
                             <li key={def.id} className={styles.definitionItem}>
                                 {def.title}: {def.startTime} - {def.endTime}, mask {def.dayMask}
                                 <span className={styles.categorySummary}>
-                                    allowed: {displayCategories(def.allowedCategories)}
+                                    {displayZoneTargets(def)}
+                                </span>
+                                <span className={styles.categorySummary}>
+                                    behavior: {def.behaviorMode || 'STRICT'}
                                 </span>
                                 <button onClick={() => editDefinition(def)} className={styles.ml}>
                                     Edit
@@ -397,15 +426,38 @@ function CustomerPage() {
                                 onChange={e => setDefEndTime(e.target.value)}
                             />
                             <label className={styles.categorySelect}>
-                                Allowed categories
+                                Primary category
                                 <select
-                                    multiple
-                                    value={defAllowed.map(canonicalizeCategory)}
-                                    onChange={e => setDefAllowed(selectedOptions(e))}
+                                    value={canonicalizeCategory(defPrimary)}
+                                    onChange={e => {
+                                        setDefPrimary(e.target.value);
+                                        setDefSecondary(prev => prev.filter(category => category !== e.target.value));
+                                    }}
                                 >
                                     {categoryOptions.map(category => (
                                         <option key={category} value={category}>{category}</option>
                                     ))}
+                                </select>
+                            </label>
+                            <label className={styles.categorySelect}>
+                                Secondary categories
+                                <select
+                                    multiple
+                                    value={defSecondary.map(canonicalizeCategory)}
+                                    onChange={e => setDefSecondary(selectedOptions(e).filter(category => category !== defPrimary))}
+                                >
+                                    {categoryOptions
+                                        .filter(category => category !== defPrimary)
+                                        .map(category => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                </select>
+                            </label>
+                            <label className={styles.categorySelect}>
+                                Behavior
+                                <select value={defBehavior} onChange={e => setDefBehavior(e.target.value)}>
+                                    <option value="STRICT">Strict</option>
+                                    <option value="PREFERRED">Preferred</option>
                                 </select>
                             </label>
                             <label className={styles.categorySelect}>
@@ -439,14 +491,20 @@ function CustomerPage() {
                             />
                             <button
                                 type="button"
-                                onClick={() => setDefAllowed(['Education'])}
+                                onClick={() => {
+                                    setDefPrimary('Education');
+                                    setDefSecondary([]);
+                                }}
                                 className={styles.quickCategoryButton}
                             >
                                 Education only
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setDefAllowed(['Sport'])}
+                                onClick={() => {
+                                    setDefPrimary('Sport');
+                                    setDefSecondary([]);
+                                }}
                                 className={styles.quickCategoryButton}
                             >
                                 Sport only

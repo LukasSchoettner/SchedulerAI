@@ -25,7 +25,10 @@ import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class TaskSchedulerService {
@@ -60,6 +63,10 @@ public class TaskSchedulerService {
     }
 
     public Schedule scheduleTasksForCustomer(Long customerId) {
+        return scheduleTasksForCustomer(customerId, List.of());
+    }
+
+    public Schedule scheduleTasksForCustomer(Long customerId, Collection<Long> excludedTaskIds) {
         // customer
         CustomerProto custProto = customerStub.getCustomerById(
                 CustomerRequest.newBuilder().setId(customerId).build()
@@ -67,12 +74,20 @@ public class TaskSchedulerService {
         CustomerDTO customerDto = customerDtoMapper.toDto(custProto);
 
         // tasks
-        List<TaskDTO> tasks = new ArrayList<>();
+        List<TaskDTO> fetchedTasks = new ArrayList<>();
         taskStub.listTasksForCustomer(
                 ListTasksRequest.newBuilder().setCustomerId(customerId).build()
         ).forEachRemaining(proto ->
-                tasks.add(taskDtoMapper.toTaskDTO(proto))
+                fetchedTasks.add(taskDtoMapper.toTaskDTO(proto))
         );
+
+        List<TaskDTO> tasks = fetchedTasks;
+        Set<Long> excluded = new HashSet<>(excludedTaskIds != null ? excludedTaskIds : List.of());
+        if (!excluded.isEmpty()) {
+            tasks = tasks.stream()
+                    .filter(task -> task.getId() == null || !excluded.contains(task.getId()))
+                    .toList();
+        }
 
         // zone config
         ZoneConfigurationDTO zoneConfigDto = null;
@@ -123,4 +138,3 @@ public class TaskSchedulerService {
         return schedule;
     }
 }
-

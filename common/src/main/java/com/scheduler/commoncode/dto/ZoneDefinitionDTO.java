@@ -19,5 +19,7 @@ public class ZoneDefinitionDTO {
     private Set<String> allowedCategories;
     private Set<String> excludedCategories;
     private Integer priorityOverrideThreshold;
+    private String primaryCategory;
+    private Set<String> secondaryCategories;
+    private String behaviorMode;
 }
-

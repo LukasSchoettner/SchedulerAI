@@ -14,8 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.annotation.PostConstruct;
 import java.time.LocalTime;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @GrpcService
@@ -98,7 +100,11 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
         definition.setEndTime(LocalTime.parse(request.getEndTime()));
         definition.setAllowedCategories(new HashSet<>(request.getAllowedCategoriesList()));
         definition.setExcludedCategories(new HashSet<>(request.getExcludedCategoriesList()));
-        definition.setPriorityOverrideThreshold(request.getPriorityOverrideThreshold());
+        definition.setPriorityOverrideThreshold(normalizePriorityOverrideThreshold(request.getPriorityOverrideThreshold()));
+        definition.setPrimaryCategory(blankToNull(request.getPrimaryCategory()));
+        definition.setSecondaryCategories(new LinkedHashSet<>(request.getSecondaryCategoriesList()));
+        definition.setBehaviorMode(normalizeBehaviorMode(request.getBehaviorMode()));
+        deriveAllowedCategories(definition);
         definition.setZoneConfigId(zoneConfigId);
         return definition;
     }
@@ -169,7 +175,10 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
                                 .setEndTime(def.getEndTime().toString())
                                 .addAllAllowedCategories(def.getAllowedCategories())
                                 .addAllExcludedCategories(def.getExcludedCategories())
-                                .setPriorityOverrideThreshold(def.getPriorityOverrideThreshold())
+                                .setPriorityOverrideThreshold(protoPriorityOverrideThreshold(def.getPriorityOverrideThreshold()))
+                                .setPrimaryCategory(def.getPrimaryCategory() != null ? def.getPrimaryCategory() : "")
+                                .addAllSecondaryCategories(def.getSecondaryCategories() != null ? def.getSecondaryCategories() : Set.of())
+                                .setBehaviorMode(def.getBehaviorMode() != null ? def.getBehaviorMode() : "STRICT")
                                 .setZoneConfigId(dto.getId())
                                 .build()
                 );
@@ -186,7 +195,7 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
                 .setDayMask(def.getDayMask())
                 .setStartTime(def.getStartTime().toString())
                 .setEndTime(def.getEndTime().toString())
-                .setPriorityOverrideThreshold(def.getPriorityOverrideThreshold() == null ? 0 : def.getPriorityOverrideThreshold())
+                .setPriorityOverrideThreshold(protoPriorityOverrideThreshold(def.getPriorityOverrideThreshold()))
                 .setZoneConfigId(def.getZoneConfigId());
 
         if (def.getAllowedCategories() != null) {
@@ -195,7 +204,46 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
         if (def.getExcludedCategories() != null) {
             builder.addAllExcludedCategories(def.getExcludedCategories());
         }
+        if (def.getPrimaryCategory() != null) {
+            builder.setPrimaryCategory(def.getPrimaryCategory());
+        }
+        if (def.getSecondaryCategories() != null) {
+            builder.addAllSecondaryCategories(def.getSecondaryCategories());
+        }
+        builder.setBehaviorMode(def.getBehaviorMode() != null ? def.getBehaviorMode() : "STRICT");
         return builder.build();
+    }
+
+    private static Integer normalizePriorityOverrideThreshold(Integer threshold) {
+        return threshold != null && threshold > 0 ? threshold : null;
+    }
+
+    private static int protoPriorityOverrideThreshold(Integer threshold) {
+        return threshold != null && threshold > 0 ? threshold : 0;
+    }
+
+    private static String normalizeBehaviorMode(String behaviorMode) {
+        if ("PREFERRED".equalsIgnoreCase(behaviorMode)) {
+            return "PREFERRED";
+        }
+        return "STRICT";
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static void deriveAllowedCategories(ZoneDefinition definition) {
+        Set<String> derived = new LinkedHashSet<>();
+        if (definition.getPrimaryCategory() != null) {
+            derived.add(definition.getPrimaryCategory());
+        }
+        if (definition.getSecondaryCategories() != null) {
+            derived.addAll(definition.getSecondaryCategories());
+        }
+        if (!derived.isEmpty()) {
+            definition.setAllowedCategories(derived);
+        }
     }
 
     @PostConstruct

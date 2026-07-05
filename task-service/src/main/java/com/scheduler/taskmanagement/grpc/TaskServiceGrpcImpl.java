@@ -45,10 +45,20 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
 
     @Override
     public void createTask(TaskCreate req, StreamObserver<TaskProto> obs) {
-        long cid = requireCurrentCustomerId();
+        long cid = req.getCustomerId() > 0 ? req.getCustomerId() : requireCurrentCustomerId();
         TaskDTO dto = taskMapper.toTaskDTO(req);
         TaskDTO saved = taskService.createTask(dto, cid);
         obs.onNext(taskMapper.toTaskProto(saved));
+        obs.onCompleted();
+    }
+
+    @Override
+    public void updateTaskStatus(UpdateTaskStatusRequest req, StreamObserver<TaskProto> obs) {
+        long cid = req.getCustomerId() > 0 ? req.getCustomerId() : requireCurrentCustomerId();
+        com.scheduler.commoncode.enums.TaskStatus status =
+                com.scheduler.commoncode.enums.TaskStatus.valueOf(req.getStatus().name());
+        TaskDTO updated = taskService.updateStatus(req.getId(), cid, status);
+        obs.onNext(taskMapper.toTaskProto(updated));
         obs.onCompleted();
     }
 

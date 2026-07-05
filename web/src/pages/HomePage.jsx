@@ -32,10 +32,14 @@ export default function HomePage() {
     return (
         <div className={styles.container}>
             <h2>Welcome{profile ? `, ${profile.customername}` : ''}!</h2>
+            <p className={styles.subtitle}>
+                Plan tasks with fixed commitments, category priorities, scheduling zones, and a daily briefing before you start the day.
+            </p>
 
             <div className={styles.cardList}>
                 <div className={styles.card}>
                     <h4>Tasks</h4>
+                    <span className={styles.meta}>Create fixed, flexible, recurring, and project tasks</span>
                     <p className={styles.count}>
                         {taskCount === null ? '...' : taskCount}
                     </p>
@@ -44,6 +48,7 @@ export default function HomePage() {
 
                 <div className={styles.card}>
                     <h4>Locations</h4>
+                    <span className={styles.meta}>Saved places for travel-aware planning</span>
                     <p className={styles.count}>
                         {locationCount === null ? '...' : locationCount}
                     </p>
@@ -52,8 +57,23 @@ export default function HomePage() {
 
                 <div className={styles.card}>
                     <h4>Schedule</h4>
+                    <span className={styles.meta}>Week/day calendar with daily briefing</span>
                     <p className={styles.count}>Ready</p>
                     <Link to="/schedule">View</Link>
+                </div>
+
+                <div className={styles.card}>
+                    <h4>Scheduler Setup</h4>
+                    <span className={styles.meta}>Category priority, quiet hours, zones, and pauses</span>
+                    <p className={styles.count}>MVP</p>
+                    <Link to="/onboarding/scheduling">Configure</Link>
+                </div>
+
+                <div className={styles.card}>
+                    <h4>Notifications</h4>
+                    <span className={styles.meta}>Reminder fields exist; push notification UI is future work</span>
+                    <p className={styles.count}>Planned</p>
+                    <Link to="/tasks">Set reminders</Link>
                 </div>
             </div>
 

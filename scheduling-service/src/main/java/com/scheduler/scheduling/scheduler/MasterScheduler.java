@@ -36,6 +36,9 @@ import java.util.stream.Collectors;
 @Component
 public class MasterScheduler {
 
+    private static final int URGENT_PRIORITY_THRESHOLD = 5;
+    private static final String QUIET_OVERRIDE_ONLY_CATEGORY = "__quiet_override_only__";
+
     private final Map<Class<?>, SchedulingStrategy<?>> strategyMap;
 
 
@@ -165,19 +168,10 @@ public class MasterScheduler {
                 (SchedulingStrategy<FlexibleTaskDTO>) strategyMap.get(FlexibleTaskDTO.class);
 
         if (flexStrat != null) {
-            for (FlexibleTaskDTO fx : flexTasks) {
-                List<TimeSlot> candidates = segments.stream()
-                        .filter(zs -> zs.evaluator.isSatisfiedBy(
-                                fx, zs.slot.getStart(), zs.slot.getEnd()))
-                        .map(zs -> zs.slot)
-                        .collect(Collectors.toList());
-                ScheduledTask st = flexStrat.schedule(fx, candidates);
-                if (st != null) {
-                    scheduled.add(st);
-                    List<TimeSlot> slots =
-                            st.getAssignedSlots() != null ? st.getAssignedSlots() : Collections.emptyList();
-                    segments = subtractSegments(segments, reservePauseAfter(slots, preferences));
-                }
+            List<ScheduledTask> flexibleScheduled = scheduleFlexibleByZones(flexTasks, segments, flexStrat, preferences);
+            scheduled.addAll(flexibleScheduled);
+            for (ScheduledTask st : flexibleScheduled) {
+                segments = subtractSegments(segments, reservePauseAfter(st.getAssignedSlots(), preferences));
             }
         } else {
             System.out.println("No SchedulingStrategy registered for FlexibleTaskDTO – skipping flexible tasks.");
@@ -200,6 +194,7 @@ public class MasterScheduler {
                 List<TimeSlot> candidates = segments.stream()
                         .filter(zs -> zs.evaluator.isSatisfiedBy(
                                 pt, zs.slot.getStart(), zs.slot.getEnd()))
+                        .sorted(zoneSegmentPreference())
                         .map(zs -> zs.slot)
                         .collect(Collectors.toList());
                 ScheduledTask st = projStrat.schedule(pt, candidates);
@@ -215,6 +210,84 @@ public class MasterScheduler {
         }
 
         return scheduled;
+    }
+
+    private List<ScheduledTask> scheduleFlexibleByZones(
+            List<FlexibleTaskDTO> flexTasks,
+            List<ZoneSegment> availableSegments,
+            SchedulingStrategy<FlexibleTaskDTO> flexStrat,
+            SchedulingPreferenceDTO preferences
+    ) {
+        List<ScheduledTask> scheduled = new ArrayList<>();
+        List<FlexibleTaskDTO> remainingTasks = new ArrayList<>(flexTasks != null ? flexTasks : Collections.emptyList());
+        List<ZoneSegment> remainingSegments = new ArrayList<>(availableSegments != null ? availableSegments : Collections.emptyList());
+
+        while (!remainingTasks.isEmpty() && !remainingSegments.isEmpty()) {
+            Optional<ScheduledChoice> next = chooseNextFlexibleTask(remainingTasks, remainingSegments, flexStrat, preferences);
+            if (next.isEmpty()) {
+                break;
+            }
+
+            ScheduledChoice choice = next.get();
+            scheduled.add(choice.scheduledTask);
+            remainingTasks.remove(choice.task);
+            remainingSegments = subtractSegments(
+                    remainingSegments,
+                    reservePauseAfter(choice.scheduledTask.getAssignedSlots(), preferences)
+            );
+        }
+
+        return scheduled;
+    }
+
+    private Optional<ScheduledChoice> chooseNextFlexibleTask(
+            List<FlexibleTaskDTO> tasks,
+            List<ZoneSegment> segments,
+            SchedulingStrategy<FlexibleTaskDTO> flexStrat,
+            SchedulingPreferenceDTO preferences
+    ) {
+        List<ZoneSegment> orderedSegments = segments.stream()
+                .sorted(zoneSegmentPreference())
+                .collect(Collectors.toList());
+
+        for (ZoneSegment segment : orderedSegments) {
+            List<FlexibleTaskDTO> candidates = tasks.stream()
+                    .filter(task -> zoneAffinity(segment, task) >= 0)
+                    .sorted(zoneCandidateComparator(segment, preferences))
+                    .collect(Collectors.toList());
+
+            for (FlexibleTaskDTO candidate : candidates) {
+                TimeSlot constrainedSlot = constrainSlotToFlexibleTaskWindow(segment.slot, candidate);
+                if (constrainedSlot == null) {
+                    continue;
+                }
+                TimeSlot slotCopy = new TimeSlot(constrainedSlot.getStart(), constrainedSlot.getEnd());
+                ScheduledTask st = flexStrat.schedule(candidate, List.of(slotCopy));
+                if (st != null && st.getAssignedSlots() != null && !st.getAssignedSlots().isEmpty()) {
+                    return Optional.of(new ScheduledChoice(candidate, st));
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private TimeSlot constrainSlotToFlexibleTaskWindow(TimeSlot slot, FlexibleTaskDTO task) {
+        LocalDateTime start = slot.getStart();
+        LocalDateTime end = slot.getEnd();
+
+        if (task.getEarliestStartDateTime() != null && start.isBefore(task.getEarliestStartDateTime())) {
+            start = task.getEarliestStartDateTime();
+        }
+        if (task.getLatestEndDateTime() != null && end.isAfter(task.getLatestEndDateTime())) {
+            end = task.getLatestEndDateTime();
+        }
+
+        int duration = task.getEstimatedDuration() != null ? task.getEstimatedDuration() : 0;
+        if (!start.isBefore(end) || (duration > 0 && start.plusMinutes(duration).isAfter(end))) {
+            return null;
+        }
+        return new TimeSlot(start, end);
     }
 
     /**
@@ -460,14 +533,6 @@ public class MasterScheduler {
                 ? cfg.getZones() : Collections.emptyList();
         List<ZoneSegment> specialSegments = new ArrayList<>();
         List<TimeSlot> specialOccupiedSlots = new ArrayList<>();
-        Set<String> categorySpecificRules = defs.stream()
-                .filter(def -> def.getAllowedCategories() != null)
-                .flatMap(def -> def.getAllowedCategories().stream())
-                .filter(Objects::nonNull)
-                .map(category -> category.trim().toLowerCase())
-                .filter(category -> !category.isBlank())
-                .collect(Collectors.toSet());
-
         LocalDate day = start.toLocalDate();
         LocalDate last = end.toLocalDate();
         for (ZoneDefinitionDTO def : defs) {
@@ -476,11 +541,13 @@ public class MasterScheduler {
             CompositeEvaluator eval = new CompositeEvaluator();
             eval.addEvaluator(new DayMaskEvaluator(def.getDayMask()));
             eval.addEvaluator(new TimeWindowEvaluator(def.getStartTime(), def.getEndTime()));
+            boolean preferredZone = "PREFERRED".equalsIgnoreCase(def.getBehaviorMode());
             eval.addEvaluator(new CategoryEvaluator(
-                    def.getAllowedCategories() != null ? def.getAllowedCategories() : Collections.emptySet(),
+                    preferredZone ? Collections.emptySet() : def.getAllowedCategories() != null ? def.getAllowedCategories() : Collections.emptySet(),
                     def.getExcludedCategories() != null ? def.getExcludedCategories() : Collections.emptySet(),
-                    def.getPriorityOverrideThreshold()
+                    resolvedPriorityOverrideThreshold(def)
             ));
+            boolean quietOverrideOnly = isQuietOverrideOnly(def);
 
             day = start.toLocalDate();
             while (!day.isAfter(last)) {
@@ -494,7 +561,7 @@ public class MasterScheduler {
                 if (ze.isAfter(end)) ze = end;
                 if (zs.isBefore(ze)) {
                     TimeSlot slot = new TimeSlot(zs, ze);
-                    specialSegments.add(new ZoneSegment(slot, eval));
+                    specialSegments.add(new ZoneSegment(slot, eval, quietOverrideOnly, def));
                     specialOccupiedSlots.add(slot);
                 }
                 day = day.plusDays(1);
@@ -509,6 +576,7 @@ public class MasterScheduler {
             if (zs.isBefore(start)) zs = start;
             if (ze.isAfter(end)) ze = end;
             if (zs.isBefore(ze)) {
+                Set<String> categorySpecificRules = categorySpecificRulesForDay(defs, day);
                 CompositeEvaluator baseEval = new CompositeEvaluator();
                 baseEval.addEvaluator(new TimeWindowEvaluator(defaultStart, defaultEnd));
                 baseEval.addEvaluator(new CategoryEvaluator(
@@ -517,7 +585,7 @@ public class MasterScheduler {
                         null
                 ));
                 for (TimeSlot slot : subtractSlots(Collections.singletonList(new TimeSlot(zs, ze)), specialOccupiedSlots)) {
-                    segments.add(new ZoneSegment(slot, baseEval));
+                    segments.add(new ZoneSegment(slot, baseEval, false, null));
                 }
             }
             day = day.plusDays(1);
@@ -528,9 +596,133 @@ public class MasterScheduler {
         return segments;
     }
 
+    private Set<String> categorySpecificRulesForDay(List<ZoneDefinitionDTO> defs, LocalDate day) {
+        if (defs == null || defs.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return defs.stream()
+                .filter(def -> matchesDayMask(def.getDayMask(), day))
+                .flatMap(def -> zoneTargetCategories(def).stream())
+                .filter(Objects::nonNull)
+                .map(category -> category.trim().toLowerCase(Locale.ROOT))
+                .filter(category -> !category.isBlank())
+                .collect(Collectors.toSet());
+    }
+
     private boolean matchesDayMask(int dayMask, LocalDate day) {
         int requiredBit = 1 << (day.getDayOfWeek().getValue() - 1);
         return (dayMask & requiredBit) != 0;
+    }
+
+    private Integer resolvedPriorityOverrideThreshold(ZoneDefinitionDTO def) {
+        Integer threshold = def.getPriorityOverrideThreshold();
+        if (threshold == null || threshold <= 0) {
+            return null;
+        }
+
+        if (isQuietOverrideOnly(def)) {
+            return URGENT_PRIORITY_THRESHOLD;
+        }
+
+        return Math.max(threshold, URGENT_PRIORITY_THRESHOLD);
+    }
+
+    private boolean isQuietOverrideOnly(ZoneDefinitionDTO def) {
+        Set<String> allowedCategories = def.getAllowedCategories() != null
+                ? def.getAllowedCategories()
+                : Collections.emptySet();
+        return allowedCategories.stream()
+                .filter(Objects::nonNull)
+                .map(category -> category.trim().toLowerCase(Locale.ROOT))
+                .anyMatch(QUIET_OVERRIDE_ONLY_CATEGORY::equals);
+    }
+
+    private Comparator<FlexibleTaskDTO> zoneCandidateComparator(ZoneSegment segment, SchedulingPreferenceDTO preferences) {
+        return Comparator
+                .comparingInt((FlexibleTaskDTO task) -> zoneAffinity(segment, task))
+                .thenComparingInt(task -> -(task.getPriority() != null ? task.getPriority() : 0))
+                .thenComparingInt(task -> categoryRank(task, preferences))
+                .thenComparing(task -> task.getDueDate() != null ? task.getDueDate() : LocalDateTime.MAX)
+                .thenComparingInt(task -> durationFitRank(task, segment.slot))
+                .thenComparing(task -> task.getTitle() != null ? task.getTitle() : "");
+    }
+
+    private int zoneAffinity(ZoneSegment segment, TaskDTO task) {
+        if (segment == null || task == null) return -1;
+        if (!segment.evaluator.isSatisfiedBy(task, segment.slot.getStart(), segment.slot.getEnd())) {
+            return -1;
+        }
+        ZoneDefinitionDTO def = segment.definition;
+        if (def == null || !hasGeneralizedZoneFields(def)) {
+            return 0;
+        }
+
+        String taskCategory = canonicalCategory(task.getCategory());
+        String primaryCategory = canonicalCategory(def.getPrimaryCategory());
+        Set<String> secondaryCategories = normalizedCategories(def.getSecondaryCategories());
+        Set<String> allowedCategories = normalizedCategories(def.getAllowedCategories());
+        boolean strict = !"PREFERRED".equalsIgnoreCase(def.getBehaviorMode());
+
+        if (!primaryCategory.isBlank() && primaryCategory.equals(taskCategory)) {
+            return 0;
+        }
+        if (secondaryCategories.contains(taskCategory)) {
+            return 1;
+        }
+        if (allowedCategories.contains(taskCategory)) {
+            return 1;
+        }
+        if (!strict || meetsPriorityOverride(def, task)) {
+            return 2;
+        }
+        return -1;
+    }
+
+    private int durationFitRank(FlexibleTaskDTO task, TimeSlot slot) {
+        int needed = task.getEstimatedDuration() != null ? task.getEstimatedDuration() : 60;
+        long spare = slot.durationMinutes() - needed;
+        return spare >= 0 ? (int) Math.min(spare, Integer.MAX_VALUE) : Integer.MAX_VALUE;
+    }
+
+    private boolean hasGeneralizedZoneFields(ZoneDefinitionDTO def) {
+        return def.getPrimaryCategory() != null && !def.getPrimaryCategory().isBlank()
+                || (def.getSecondaryCategories() != null && !def.getSecondaryCategories().isEmpty())
+                || def.getBehaviorMode() != null && !def.getBehaviorMode().isBlank();
+    }
+
+    private boolean meetsPriorityOverride(ZoneDefinitionDTO def, TaskDTO task) {
+        Integer threshold = resolvedPriorityOverrideThreshold(def);
+        int priority = task.getPriority() != null ? task.getPriority() : 0;
+        return threshold != null && priority >= threshold;
+    }
+
+    private Set<String> normalizedCategories(Collection<String> categories) {
+        if (categories == null) return Collections.emptySet();
+        return categories.stream()
+                .filter(Objects::nonNull)
+                .map(this::canonicalCategory)
+                .collect(Collectors.toSet());
+    }
+
+    private Set<String> zoneTargetCategories(ZoneDefinitionDTO def) {
+        Set<String> categories = new LinkedHashSet<>();
+        if (def == null) return categories;
+        if (def.getPrimaryCategory() != null && !def.getPrimaryCategory().isBlank()) {
+            categories.add(def.getPrimaryCategory());
+        }
+        if (def.getSecondaryCategories() != null) {
+            categories.addAll(def.getSecondaryCategories());
+        }
+        if (categories.isEmpty() && def.getAllowedCategories() != null) {
+            categories.addAll(def.getAllowedCategories());
+        }
+        return categories;
+    }
+
+    private Comparator<ZoneSegment> zoneSegmentPreference() {
+        return Comparator
+                .comparing((ZoneSegment zs) -> zs.quietFallback)
+                .thenComparing(zs -> zs.slot.getStart());
     }
 
     private List<ZoneSegment> subtractSegments(
@@ -547,7 +739,7 @@ public class MasterScheduler {
                     occupied != null ? occupied : Collections.emptyList()
             );
             for (TimeSlot ts : splits) {
-                result.add(new ZoneSegment(ts, seg.evaluator));
+                result.add(new ZoneSegment(ts, seg.evaluator, seg.quietFallback, seg.definition));
             }
         }
         return result;
@@ -585,10 +777,17 @@ public class MasterScheduler {
     private static class ZoneSegment {
         final TimeSlot slot;
         final CompositeEvaluator evaluator;
+        final boolean quietFallback;
+        final ZoneDefinitionDTO definition;
 
-        ZoneSegment(TimeSlot slot, CompositeEvaluator evaluator) {
+        ZoneSegment(TimeSlot slot, CompositeEvaluator evaluator, boolean quietFallback, ZoneDefinitionDTO definition) {
             this.slot = slot;
             this.evaluator = evaluator;
+            this.quietFallback = quietFallback;
+            this.definition = definition;
         }
+    }
+
+    private record ScheduledChoice(FlexibleTaskDTO task, ScheduledTask scheduledTask) {
     }
 }

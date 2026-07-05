@@ -1,16 +1,245 @@
 .container {
-  margin: 2rem;
+  width: min(1280px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+  color: #17202a;
 }
 
-.generateBtn {
-  margin-bottom: 1rem;
-}
-
-.form {
+.pageHeader {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  max-width: 400px;
+  margin-bottom: 1.5rem;
+}
+
+.pageHeader h2,
+.wizardHeader h3,
+.listSection h3 {
+  margin: 0;
+}
+
+.eyebrow,
+.stepLabel {
+  display: block;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.wizardShell {
+  border: 1px solid #d8e0ea;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.wizardHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 320px);
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.progressTrack {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #e7eef6;
+  overflow: hidden;
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  background: #2563eb;
+}
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.choiceGridCompact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.choiceCard,
+.choiceGridCompact button,
+.wizardActions button,
+.taskActions button,
+.secondaryBtn,
+.primaryBtn,
+.summaryRow button,
+.subtaskRow button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #17202a;
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.choiceCard {
+  min-height: 7rem;
+  text-align: left;
+}
+
+.choiceCard strong,
+.choiceCard span {
+  display: block;
+}
+
+.choiceCard span {
+  margin-top: 0.35rem;
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.selected,
+.segmentActive {
+  border-color: #2563eb !important;
+  background: #eaf2ff !important;
+  color: #1d4ed8 !important;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.formGrid label,
+.customPause {
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.formGrid input,
+.formGrid select,
+.formGrid textarea,
+.subtaskRow input,
+.subtaskRow select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17202a;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.formGrid textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.fieldLabel {
+  display: block;
+  color: #334155;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.segmented button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #17202a;
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wizardActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.primaryBtn {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.secondaryBtn {
+  background: #f8fafc;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.muted {
+  color: #64748b;
+  margin: 0.25rem 0 0;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.6fr) minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.summaryRow span {
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.subtaskList {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+}
+
+.subtaskRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 150px 110px auto;
+  gap: 0.5rem;
+}
+
+.listSection {
+  margin-top: 2rem;
 }
 
 .taskList {
@@ -21,8 +250,10 @@
 }
 
 .taskItem {
-  border: 1px solid #ddd;
-  padding: 0.75rem;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0.9rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,8 +269,10 @@
 }
 
 .taskMeta {
-  color: #555;
+  display: inline-block;
+  color: #64748b;
   font-size: 0.9rem;
+  margin-right: 0.35rem;
 }
 
 .categoryBadge {
@@ -50,20 +283,39 @@
   border-radius: 6px;
   color: #fff;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .taskActions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
-.inlineControl {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
+@media (max-width: 800px) {
+  .pageHeader,
+  .wizardHeader,
+  .taskItem {
+    align-items: stretch;
+    flex-direction: column;
+    display: flex;
+  }
 
-.inlineControl input {
-  flex: 1;
+  .formGrid,
+  .summaryRow,
+  .subtaskRow {
+    grid-template-columns: 1fr;
+  }
+
+  .wizardActions,
+  .taskActions {
+    justify-content: stretch;
+  }
+
+  .wizardActions button,
+  .taskActions button,
+  .secondaryBtn {
+    width: 100%;
+  }
 }
