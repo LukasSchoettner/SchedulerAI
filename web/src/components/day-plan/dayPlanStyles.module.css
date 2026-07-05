@@ -1,0 +1,396 @@
+.panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(31, 41, 51, 0.07);
+}
+
+.eyebrow {
+  display: block;
+  color: #1565c0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.panel h3,
+.panel p {
+  margin: 0;
+}
+
+.panel h3 {
+  color: #1f2933;
+}
+
+.panel p {
+  color: #52616b;
+}
+
+.briefingTop,
+.compactBanner,
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.inlineActions,
+.taskActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.doneBtn,
+.moreBtn,
+.moreMenuPanel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  border: 1px solid #cfd8dc;
+  border-radius: 6px;
+  padding: 0.42rem 0.72rem;
+  color: #263238;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryBtn,
+.doneBtn {
+  border-color: #1565c0;
+  background: #1565c0;
+  color: #ffffff;
+}
+
+.primaryBtn:hover,
+.doneBtn:hover {
+  border-color: #0f4f99;
+  background: #0f4f99;
+}
+
+.secondaryBtn:hover,
+.moreBtn:hover,
+.moreMenuPanel button:hover {
+  border-color: #1565c0;
+  background: #eef5ff;
+  color: #0b3d73;
+}
+
+.moreMenuPanel button:disabled {
+  border-color: #d7dee5;
+  background: #e3e8ee;
+  color: #7b8794;
+  cursor: not-allowed;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.26rem 0.58rem;
+  border: 1px solid #cfd8dc;
+  border-radius: 999px;
+  color: #405261;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-confirmed {
+  border-color: #9ac9a8;
+  color: #1b5e20;
+  background: #edf8ef;
+}
+
+.status-review,
+.status-changed {
+  border-color: #f1c27d;
+  color: #7a4b00;
+  background: #fff6e6;
+}
+
+.status-neutral {
+  border-color: #cfd8dc;
+}
+
+.briefingMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.metric {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid #edf1f4;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.metric span {
+  color: #607d8b;
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.metric strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #1f2933;
+  font-size: 1rem;
+}
+
+.importantRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  color: #405261;
+}
+
+.importantRow span,
+.importantRow strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 0.86rem;
+}
+
+.importantRow strong {
+  color: #7a4b00;
+  background: #fff6e6;
+}
+
+.nextTaskLayout {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.nextTaskTime,
+.timelineTime {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.nextTaskTime strong,
+.timelineTime strong {
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.nextTaskTime span,
+.timelineTime span {
+  color: #607d8b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.previewList,
+.timeline {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previewList li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #edf1f4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.previewList span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.previewList small {
+  color: #607d8b;
+  font-weight: 800;
+}
+
+.previewCompleted {
+  opacity: 0.72;
+  background: #f3fbf5 !important;
+}
+
+.previewReserved {
+  background: #f9fafb !important;
+}
+
+.timelineItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 4.25rem;
+  padding: 0.62rem 0.72rem;
+  border: 1px solid #edf1f4;
+  border-left: 4px solid #6b7280;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.timelineItemCompleted {
+  border-color: #9ac9a8;
+  background: #f3fbf5;
+  opacity: 0.85;
+}
+
+.timelineItemReserved {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.timelineMain {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.timelineTitleRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.timelineTitleRow strong,
+.timelineMain p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.categoryPill {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 1.55rem;
+  padding: 0.15rem 0.48rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.doneBtn {
+  min-width: 4.3rem;
+}
+
+.moreMenu {
+  position: relative;
+}
+
+.moreBtn {
+  width: 2.25rem;
+  padding: 0.3rem;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.moreMenuPanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  display: grid;
+  gap: 0.25rem;
+  width: 14rem;
+  padding: 0.35rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(31, 41, 51, 0.18);
+}
+
+.moreMenuPanel button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 2rem;
+  text-align: left;
+}
+
+.emptyInline {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid #edf1f4;
+  border-radius: 8px;
+  color: #52616b;
+  background: #f8fafc;
+}
+
+@media (max-width: 760px) {
+  .briefingTop,
+  .compactBanner,
+  .sectionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .briefingMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inlineActions {
+    justify-content: flex-start;
+  }
+
+  .timelineItem {
+    grid-template-columns: 1fr;
+  }
+
+  .timelineTime {
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 0.45rem;
+  }
+
+  .taskActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 540px) {
+  .briefingMetrics,
+  .previewList li {
+    grid-template-columns: 1fr;
+  }
+
+  .moreMenuPanel {
+    left: 0;
+    right: auto;
+  }
+}
