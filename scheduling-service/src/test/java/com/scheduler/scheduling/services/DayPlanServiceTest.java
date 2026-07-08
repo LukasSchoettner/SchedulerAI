@@ -9,9 +9,14 @@ import com.scheduler.scheduling.models.DayPlanActionSource;
 import com.scheduler.scheduling.models.DayPlanItem;
 import com.scheduler.scheduling.models.DayPlanItemStatus;
 import com.scheduler.scheduling.models.DayPlanStatus;
+import com.scheduler.scheduling.models.FollowUpStatus;
 import com.scheduler.scheduling.models.Schedule;
 import com.scheduler.scheduling.models.ScheduledTask;
 import com.scheduler.scheduling.models.TimeSlot;
+import com.scheduler.scheduling.models.UnscheduledReasonCode;
+import com.scheduler.scheduling.models.UnscheduledTaskReport;
+import com.scheduler.scheduling.notifications.NotificationService;
+import com.scheduler.scheduling.notifications.NotificationType;
 import com.scheduler.scheduling.repositories.DayPlanRepository;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskProto;
@@ -34,14 +39,16 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.when;
 
 class DayPlanServiceTest {
 
     private final DayPlanRepository dayPlanRepository = mock(DayPlanRepository.class);
     private final TaskSchedulerService taskSchedulerService = mock(TaskSchedulerService.class);
+    private final NotificationService notificationService = mock(NotificationService.class);
     private final TaskServiceGrpc.TaskServiceBlockingStub taskStub = mock(TaskServiceGrpc.TaskServiceBlockingStub.class);
-    private final DayPlanService service = new DayPlanService(dayPlanRepository, taskSchedulerService);
+    private final DayPlanService service = new DayPlanService(dayPlanRepository, taskSchedulerService, notificationService);
 
     @BeforeEach
     void setUp() {
@@ -78,6 +85,16 @@ class DayPlanServiceTest {
         assertThat(response.items()).extracting("titleSnapshot").containsExactly("Earlier", "Later");
         assertThat(response.planSignature()).contains("Earlier").contains("Later");
         verify(dayPlanRepository).save(any(DayPlan.class));
+        verify(notificationService).createIfNotExists(
+                eq(123L),
+                eq(NotificationType.DAY_PLAN_CONFIRMATION_NEEDED),
+                any(),
+                any(),
+                eq(null),
+                eq(10L),
+                eq(null),
+                eq(null)
+        );
     }
 
     @Test
@@ -91,6 +108,9 @@ class DayPlanServiceTest {
         assertThat(response.confirmedAt()).isNotNull();
         assertThat(response.items().getFirst().status()).isEqualTo(DayPlanItemStatus.KEPT);
         assertThat(response.items().getFirst().actionSource()).isEqualTo(DayPlanActionSource.USER_CONFIRMED);
+        assertThat(response.items().getFirst().followUpStatus()).isEqualTo(FollowUpStatus.PENDING);
+        verify(notificationService).createTaskStartingSoon(eq(123L), eq(10L), any(DayPlanItem.class));
+        verify(notificationService).createFollowUpDue(eq(123L), eq(10L), any(DayPlanItem.class));
     }
 
     @Test
@@ -149,6 +169,16 @@ class DayPlanServiceTest {
         assertThat(response.changedFromConfirmed()).isFalse();
         assertThat(response.status()).isEqualTo(DayPlanStatus.GENERATED);
         assertThat(response.items()).extracting("status").containsExactly(DayPlanItemStatus.PLANNED);
+        verify(notificationService).createIfNotExists(
+                eq(123L),
+                eq(NotificationType.PLAN_CHANGED),
+                any(),
+                any(),
+                eq(null),
+                eq(10L),
+                eq(null),
+                eq(null)
+        );
     }
 
     @Test
@@ -166,6 +196,7 @@ class DayPlanServiceTest {
         assertThat(createCaptor.getValue().getType()).isEqualTo(com.scheduler.taskmanagement.grpc.TaskType.FIXED);
         assertThat(response.items().getFirst().status()).isEqualTo(DayPlanItemStatus.FREE_TIME);
         assertThat(response.items().getFirst().taskId()).isEqualTo(99L);
+        assertThat(response.items().getFirst().followUpStatus()).isEqualTo(FollowUpStatus.NOT_NEEDED);
     }
 
     @Test
@@ -186,6 +217,7 @@ class DayPlanServiceTest {
         LocalDateTime startAfter = date.atTime(11, 0);
         DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
         plan.setPlanDate(date);
+        DayPlanItem rescheduledItem = plan.getItems().getFirst();
         when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
         when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(emptySchedule());
@@ -196,6 +228,65 @@ class DayPlanServiceTest {
         ArgumentCaptor<java.util.Map<Long, Integer>> overridesCaptor = ArgumentCaptor.forClass(java.util.Map.class);
         verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), overridesCaptor.capture());
         assertThat(overridesCaptor.getValue()).containsEntry(44L, 25);
+        assertThat(rescheduledItem.getFollowUpStatus()).isEqualTo(FollowUpStatus.RESCHEDULED);
+        assertThat(rescheduledItem.getFollowUpAnswer()).isEqualTo("STARTED_NOT_FINISHED");
+        assertThat(rescheduledItem.getRemainingMinutes()).isEqualTo(25);
+        verify(notificationService).dismissUnreadForItem(123L, 100L);
+    }
+
+    @Test
+    void generateCreatesUnscheduledSummaryNotification() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.empty());
+        Schedule schedule = emptySchedule();
+        schedule.setUnscheduledTasks(List.of(new UnscheduledTaskReport(
+                44L,
+                "Too long",
+                "Work",
+                UnscheduledReasonCode.DURATION_TOO_LONG,
+                "No slot"
+        )));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule);
+
+        service.generatePlan(123L, date);
+
+        verify(notificationService).createIfNotExists(
+                eq(123L),
+                eq(NotificationType.UNSCHEDULED_TASKS),
+                any(),
+                any(),
+                eq(null),
+                eq(10L),
+                eq(null),
+                eq(null)
+        );
+    }
+
+    @Test
+    void completeUpdatesFollowUpStateAndClearsFollowUpNotification() {
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.KEPT);
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+
+        var response = service.complete(123L, 10L, 100L);
+
+        assertThat(response.items().getFirst().status()).isEqualTo(DayPlanItemStatus.COMPLETED);
+        assertThat(response.items().getFirst().followUpStatus()).isEqualTo(FollowUpStatus.ANSWERED);
+        assertThat(response.items().getFirst().followUpAnswer()).isEqualTo("FINISHED");
+        verify(notificationService).dismissUnreadForItem(123L, 100L);
+    }
+
+    @Test
+    void regenerateDismissesFutureNotificationsForInactiveItems() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.KEPT);
+        plan.setPlanDate(date);
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(emptySchedule());
+
+        service.regenerate(123L, 10L);
+
+        verify(notificationService, atLeastOnce()).dismissFutureItemNotifications(eq(123L), any());
     }
 
     private DayPlan planWithItem(Long customerId, Long planId, Long itemId, Long taskId, DayPlanItemStatus status) {

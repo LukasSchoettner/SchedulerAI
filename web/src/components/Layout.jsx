@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router-dom';
+import NotificationCenter from './NotificationCenter';
 import styles from './Layout.module.css';
 
 export default function Layout() {
@@ -9,6 +10,7 @@ export default function Layout() {
         <Link to="/tasks">Tasks</Link>
         <Link to="/schedule">Schedule</Link>
         <Link to="/settings">Settings</Link>
+        <NotificationCenter />
       </nav>
       <main className={styles.main}>
         <Outlet />

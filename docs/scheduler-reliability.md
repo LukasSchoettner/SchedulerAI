@@ -60,6 +60,12 @@ Reason codes:
 
 Explanations are intentionally short and are not a full audit trail. They are meant to make tests and debugging clearer.
 
+### Known Phase 2 limitations
+
+- `PREFER_INSIDE_WINDOW` currently behaves like `ALLOW_ELSEWHERE` for scheduling eligibility. It expresses intent, but does not yet apply stronger outside-window ranking.
+- Legacy allowed/excluded-only `CategoryEvaluator` override logic still uses raw `task.priority`. Generalized Planning Windows use effective priority in `MasterScheduler`.
+- Unscheduled reason inference is intentionally lightweight. Some cases, especially fixed-task conflicts, may appear as `NO_AVAILABLE_SLOT`, `DURATION_TOO_LONG`, or `OUTSIDE_ALLOWED_WINDOW` rather than a precise `CONFLICTS_WITH_FIXED_TASK`.
+
 ## Running Reliability Checks
 
 ```powershell

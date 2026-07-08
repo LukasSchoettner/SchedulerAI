@@ -29,6 +29,8 @@ For release notes and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md
 For troubleshooting local startup, see [LOCAL_STARTUP.md](LOCAL_STARTUP.md).
 For scheduler reliability concepts, tests, and seed scenarios, see [docs/scheduler-reliability.md](docs/scheduler-reliability.md).
 
+Phase 3 adds a database-backed in-app notification MVP; see [docs/notifications-mvp.md](docs/notifications-mvp.md).
+
 ## Verification
 
 ```powershell

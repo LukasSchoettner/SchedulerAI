@@ -15,6 +15,7 @@ import com.scheduler.scheduling.models.TimeSlot;
 import com.scheduler.scheduling.strategy.SchedulingStrategy;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -30,7 +31,7 @@ class MasterSchedulerCategoryTest {
     private final MasterScheduler scheduler = new MasterScheduler(Map.of(
             FixedTaskDTO.class, fixedStrategy(),
             FlexibleTaskDTO.class, firstFitFlexibleStrategy()
-    ));
+    ), Clock.systemDefaultZone());
 
     @Test
     void categorySpecificRulesBlockTheDefaultWindow() {

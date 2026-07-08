@@ -43,6 +43,10 @@ spring:
           uri: http://scheduling-service:8085
           predicates:
             - Path=/day-plans/**
+        - id: notification-service
+          uri: http://scheduling-service:8085
+          predicates:
+            - Path=/notifications/**
 
       # Optionally define global or route-specific filters
 management:

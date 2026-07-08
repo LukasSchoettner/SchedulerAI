@@ -2,6 +2,7 @@ package com.scheduler.scheduling.dto;
 
 import com.scheduler.scheduling.models.DayPlanActionSource;
 import com.scheduler.scheduling.models.DayPlanItemStatus;
+import com.scheduler.scheduling.models.FollowUpStatus;
 
 import java.time.LocalDateTime;
 
@@ -18,6 +19,11 @@ public record DayPlanItemResponse(
         DayPlanActionSource actionSource,
         String notes,
         Integer prioritySnapshot,
-        String recurrencePatternSnapshot
+        String recurrencePatternSnapshot,
+        FollowUpStatus followUpStatus,
+        LocalDateTime followUpPromptedAt,
+        LocalDateTime followUpAnsweredAt,
+        String followUpAnswer,
+        Integer remainingMinutes
 ) {
 }

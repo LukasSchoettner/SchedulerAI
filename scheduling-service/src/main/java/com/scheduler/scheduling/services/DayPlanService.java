@@ -9,8 +9,13 @@ import com.scheduler.scheduling.models.DayPlanActionSource;
 import com.scheduler.scheduling.models.DayPlanItem;
 import com.scheduler.scheduling.models.DayPlanItemStatus;
 import com.scheduler.scheduling.models.DayPlanStatus;
+import com.scheduler.scheduling.models.FollowUpStatus;
+import com.scheduler.scheduling.models.Schedule;
 import com.scheduler.scheduling.models.ScheduledTask;
 import com.scheduler.scheduling.models.TimeSlot;
+import com.scheduler.scheduling.models.UnscheduledTaskReport;
+import com.scheduler.scheduling.notifications.NotificationService;
+import com.scheduler.scheduling.notifications.NotificationType;
 import com.scheduler.scheduling.repositories.DayPlanRepository;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
@@ -18,6 +23,7 @@ import com.scheduler.taskmanagement.grpc.UpdateTaskStatusRequest;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import net.devh.boot.grpc.client.inject.GrpcClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,13 +47,24 @@ public class DayPlanService {
 
     private final DayPlanRepository dayPlanRepository;
     private final TaskSchedulerService taskSchedulerService;
+    private final NotificationService notificationService;
 
     @GrpcClient("task-service")
     private TaskServiceGrpc.TaskServiceBlockingStub taskStub;
 
     public DayPlanService(DayPlanRepository dayPlanRepository, TaskSchedulerService taskSchedulerService) {
+        this(dayPlanRepository, taskSchedulerService, null);
+    }
+
+    @Autowired
+    public DayPlanService(
+            DayPlanRepository dayPlanRepository,
+            TaskSchedulerService taskSchedulerService,
+            NotificationService notificationService
+    ) {
         this.dayPlanRepository = dayPlanRepository;
         this.taskSchedulerService = taskSchedulerService;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -93,7 +110,8 @@ public class DayPlanService {
                 .map(this::copyDetached)
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        List<DayPlanItem> generatedItems = generateItems(customerId, date, skippedTaskIds, startAfter, durationOverrides);
+        GeneratedDayPlanData generatedData = generateItems(customerId, date, skippedTaskIds, startAfter, durationOverrides);
+        List<DayPlanItem> generatedItems = generatedData.items();
         generatedItems.addAll(preservedSkippedItems);
         generatedItems.sort(Comparator.comparing(DayPlanItem::getStartDateTime).thenComparing(item -> item.getId() == null ? 0L : item.getId()));
 
@@ -106,7 +124,9 @@ public class DayPlanService {
         plan.setChangedFromConfirmed(confirmedSignature != null && !confirmedSignature.equals(nextSignature));
         plan.replaceItems(generatedItems);
         refreshPlanSummary(plan);
-        return toResponse(dayPlanRepository.save(plan));
+        DayPlan saved = dayPlanRepository.save(plan);
+        createGenerationNotifications(saved, generatedData.unscheduledTasks());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -121,8 +141,18 @@ public class DayPlanService {
                     item.setStatus(DayPlanItemStatus.KEPT);
                     item.setActionSource(DayPlanActionSource.USER_CONFIRMED);
                 });
+        plan.getItems().stream()
+                .filter(this::isActiveFlexibleItem)
+                .forEach(item -> {
+                    item.setFollowUpStatus(FollowUpStatus.PENDING);
+                    item.setFollowUpPromptedAt(null);
+                    item.setFollowUpAnsweredAt(null);
+                    item.setFollowUpAnswer(null);
+                });
         refreshPlanSummary(plan);
-        return toResponse(dayPlanRepository.save(plan));
+        DayPlan saved = dayPlanRepository.save(plan);
+        createConfirmationNotifications(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -142,6 +172,12 @@ public class DayPlanService {
         DayPlanItem item = requireItem(plan, itemId);
         item.setStatus(DayPlanItemStatus.COMPLETED);
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
+        if (!TaskType.FIXED.name().equalsIgnoreCase(item.getTaskTypeSnapshot())) {
+            item.setFollowUpStatus(FollowUpStatus.ANSWERED);
+            item.setFollowUpAnsweredAt(LocalDateTime.now());
+            item.setFollowUpAnswer("FINISHED");
+            dismissUnreadForItem(customerId, item.getId());
+        }
 
         if (item.getTaskId() != null && !hasRecurrence(item)) {
             taskStub.updateTaskStatus(UpdateTaskStatusRequest.newBuilder()
@@ -184,6 +220,7 @@ public class DayPlanService {
         item.setStatus(DayPlanItemStatus.FREE_TIME);
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
         item.setNotes("Reserved from daily briefing");
+        item.setFollowUpStatus(FollowUpStatus.NOT_NEEDED);
         refreshPlanSummary(plan);
         return toResponse(dayPlanRepository.save(plan));
     }
@@ -196,7 +233,10 @@ public class DayPlanService {
     @Transactional
     public DayPlanResponse regenerate(Long customerId, Long planId, LocalDateTime startAfter) {
         DayPlan plan = requireOwnedPlan(customerId, planId);
-        return generatePlan(customerId, plan.getPlanDate(), startAfter);
+        DayPlanResponse response = generatePlan(customerId, plan.getPlanDate(), startAfter);
+        createPlanChangedNotification(customerId, response.id());
+        dismissFutureItemNotifications(customerId, response);
+        return response;
     }
 
     @Transactional
@@ -223,6 +263,11 @@ public class DayPlanService {
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
         item.setNotes("Rescheduled from follow-up" + (reason != null && !reason.isBlank() ? ": " + reason : "")
                 + (remainingMinutes != null && remainingMinutes > 0 ? "; remaining " + remainingMinutes + " minutes" : ""));
+        item.setFollowUpStatus(FollowUpStatus.RESCHEDULED);
+        item.setFollowUpAnsweredAt(LocalDateTime.now());
+        item.setFollowUpAnswer(reason);
+        item.setRemainingMinutes(remainingMinutes);
+        dismissUnreadForItem(customerId, item.getId());
         refreshPlanSummary(plan);
         dayPlanRepository.save(plan);
 
@@ -250,7 +295,7 @@ public class DayPlanService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Day plan item not found"));
     }
 
-    private List<DayPlanItem> generateItems(
+    private GeneratedDayPlanData generateItems(
             Long customerId,
             LocalDate date,
             Set<Long> skippedTaskIds,
@@ -258,15 +303,20 @@ public class DayPlanService {
             Map<Long, Integer> durationOverrides
     ) {
         try {
-            return taskSchedulerService.scheduleTasksForCustomer(customerId, skippedTaskIds, startAfter, durationOverrides)
+            Schedule schedule = taskSchedulerService.scheduleTasksForCustomer(customerId, skippedTaskIds, startAfter, durationOverrides);
+            List<DayPlanItem> items = schedule
                     .getScheduledTasks()
                     .stream()
                     .flatMap(scheduledTask -> toItems(scheduledTask, date).stream())
                     .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
                     .collect(Collectors.toCollection(ArrayList::new));
+            List<UnscheduledTaskReport> unscheduled = schedule.getUnscheduledTasks() != null
+                    ? schedule.getUnscheduledTasks()
+                    : List.of();
+            return new GeneratedDayPlanData(items, unscheduled);
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                return new ArrayList<>();
+                return new GeneratedDayPlanData(new ArrayList<>(), List.of());
             }
             throw e;
         }
@@ -299,6 +349,7 @@ public class DayPlanService {
         item.setActionSource(DayPlanActionSource.GENERATED);
         item.setPrioritySnapshot(task.getPriority());
         item.setRecurrencePatternSnapshot(task.getRecurrencePattern());
+        item.setFollowUpStatus(task.getType() == TaskType.FLEXIBLE ? FollowUpStatus.NOT_NEEDED : FollowUpStatus.NOT_NEEDED);
         return item;
     }
 
@@ -316,6 +367,11 @@ public class DayPlanService {
         copy.setNotes(source.getNotes());
         copy.setPrioritySnapshot(source.getPrioritySnapshot());
         copy.setRecurrencePatternSnapshot(source.getRecurrencePatternSnapshot());
+        copy.setFollowUpStatus(source.getFollowUpStatus());
+        copy.setFollowUpPromptedAt(source.getFollowUpPromptedAt());
+        copy.setFollowUpAnsweredAt(source.getFollowUpAnsweredAt());
+        copy.setFollowUpAnswer(source.getFollowUpAnswer());
+        copy.setRemainingMinutes(source.getRemainingMinutes());
         return copy;
     }
 
@@ -432,7 +488,90 @@ public class DayPlanService {
                 item.getActionSource(),
                 item.getNotes(),
                 item.getPrioritySnapshot(),
-                item.getRecurrencePatternSnapshot()
+                item.getRecurrencePatternSnapshot(),
+                item.getFollowUpStatus(),
+                item.getFollowUpPromptedAt(),
+                item.getFollowUpAnsweredAt(),
+                item.getFollowUpAnswer(),
+                item.getRemainingMinutes()
         );
+    }
+
+    private void createGenerationNotifications(DayPlan plan, List<UnscheduledTaskReport> unscheduledTasks) {
+        if (notificationService == null || plan == null || plan.getId() == null) return;
+        if (plan.getStatus() != DayPlanStatus.CONFIRMED) {
+            notificationService.createIfNotExists(
+                    plan.getCustomerId(),
+                    NotificationType.DAY_PLAN_CONFIRMATION_NEEDED,
+                    "Confirm your day plan",
+                    "Review and confirm your day plan so reminders can work properly.",
+                    null,
+                    plan.getId(),
+                    null,
+                    null
+            );
+        }
+        int unscheduledCount = unscheduledTasks == null ? 0 : unscheduledTasks.size();
+        if (unscheduledCount > 0) {
+            notificationService.createIfNotExists(
+                    plan.getCustomerId(),
+                    NotificationType.UNSCHEDULED_TASKS,
+                    "Some tasks could not be scheduled",
+                    unscheduledCount + " tasks could not be placed today. Review them in the schedule.",
+                    null,
+                    plan.getId(),
+                    null,
+                    null
+            );
+        }
+    }
+
+    private void createConfirmationNotifications(DayPlan plan) {
+        if (notificationService == null || plan == null || plan.getId() == null) return;
+        activeItems(plan).forEach(item -> {
+            notificationService.createTaskStartingSoon(plan.getCustomerId(), plan.getId(), item);
+            if (isActiveFlexibleItem(item)) {
+                notificationService.createFollowUpDue(plan.getCustomerId(), plan.getId(), item);
+            }
+        });
+    }
+
+    private void createPlanChangedNotification(Long customerId, Long planId) {
+        if (notificationService == null) return;
+        notificationService.createIfNotExists(
+                customerId,
+                NotificationType.PLAN_CHANGED,
+                "Plan updated",
+                "Your day plan was updated.",
+                null,
+                planId,
+                null,
+                null
+        );
+    }
+
+    private void dismissFutureItemNotifications(Long customerId, DayPlanResponse response) {
+        if (notificationService == null || response == null) return;
+        notificationService.dismissFutureItemNotifications(
+                customerId,
+                response.items().stream().map(DayPlanItemResponse::id).filter(Objects::nonNull).toList()
+        );
+    }
+
+    private void dismissUnreadForItem(Long customerId, Long itemId) {
+        if (notificationService != null) {
+            notificationService.dismissUnreadForItem(customerId, itemId);
+        }
+    }
+
+    private boolean isActiveFlexibleItem(DayPlanItem item) {
+        return item != null
+                && !TaskType.FIXED.name().equalsIgnoreCase(item.getTaskTypeSnapshot())
+                && item.getStatus() != DayPlanItemStatus.SKIPPED
+                && item.getStatus() != DayPlanItemStatus.REPLACED
+                && item.getStatus() != DayPlanItemStatus.FREE_TIME;
+    }
+
+    private record GeneratedDayPlanData(List<DayPlanItem> items, List<UnscheduledTaskReport> unscheduledTasks) {
     }
 }

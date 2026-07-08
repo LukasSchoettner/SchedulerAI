@@ -177,6 +177,32 @@ class MasterSchedulerReliabilityTest {
     }
 
     @Test
+    void preferInsideWindowPermitsTargetCategoryFallbackForNow() {
+        ZoneDefinitionDTO education = planningWindow(
+                "Education",
+                Set.of(),
+                "PREFERRED",
+                "PREFER_INSIDE_WINDOW",
+                null,
+                LocalTime.of(9, 0),
+                LocalTime.of(10, 0)
+        );
+        CustomerDTO customer = customerWithZones(List.of(education));
+        customer.setSchedulingPreference(preferences(Map.of("Education", 4), 0));
+        FlexibleTaskDTO first = flexibleTask("Education", null, 60);
+        first.setTitle("Education A");
+        FlexibleTaskDTO second = flexibleTask("Education", null, 60);
+        second.setTitle("Education B");
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(first, second), null, null);
+
+        // Phase 2 intentionally treats PREFER_INSIDE_WINDOW like ALLOW_ELSEWHERE for eligibility.
+        // Future work may refine ranking, but it should not block fallback scheduling.
+        assertThat(result.getScheduledTasks()).hasSize(2);
+        assertThat(result.getUnscheduledTasks()).isEmpty();
+    }
+
+    @Test
     void mondayOnlyPlanningWindowDoesNotApplyOnTuesday() {
         Clock tuesdayClock = Clock.fixed(
                 LocalDateTime.of(2026, 7, 7, 8, 0).atZone(ZONE).toInstant(),

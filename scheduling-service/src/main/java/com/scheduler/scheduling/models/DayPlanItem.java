@@ -63,4 +63,16 @@ public class DayPlanItem {
     private Integer prioritySnapshot;
 
     private String recurrencePatternSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private FollowUpStatus followUpStatus = FollowUpStatus.NOT_NEEDED;
+
+    private LocalDateTime followUpPromptedAt;
+
+    private LocalDateTime followUpAnsweredAt;
+
+    private String followUpAnswer;
+
+    private Integer remainingMinutes;
 }

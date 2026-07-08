@@ -380,6 +380,9 @@ function nextFollowUpItem(items) {
         && item.status !== 'COMPLETED'
         && item.status !== 'SKIPPED'
         && item.status !== 'FREE_TIME'
+        && item.followUpStatus !== 'ANSWERED'
+        && item.followUpStatus !== 'RESCHEDULED'
+        && item.followUpStatus !== 'DISMISSED'
         && new Date(item.endDateTime) <= now
         && !followUpAnswered(item.id)
     )) || null;

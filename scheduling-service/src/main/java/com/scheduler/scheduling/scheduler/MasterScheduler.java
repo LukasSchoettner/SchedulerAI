@@ -51,8 +51,11 @@ public class MasterScheduler {
 
 
     @Autowired
-    public MasterScheduler(Map<Class<?>, SchedulingStrategy<?>> strategyMap) {
-        this(strategyMap, Clock.systemDefaultZone(), new EffectivePriorityCalculator());
+    public MasterScheduler(
+            Map<Class<?>, SchedulingStrategy<?>> strategyMap,
+            EffectivePriorityCalculator effectivePriorityCalculator
+    ) {
+        this(strategyMap, Clock.systemDefaultZone(), effectivePriorityCalculator);
     }
 
     public MasterScheduler(Map<Class<?>, SchedulingStrategy<?>> strategyMap, Clock clock) {
