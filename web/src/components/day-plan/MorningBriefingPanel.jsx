@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import PlanStatusChip from './PlanStatusChip';
 import styles from './dayPlanStyles.module.css';
-import { countPlanItems, formatMinutes } from './dayPlanUtils';
+import { countPlanItems, formatMinutes, formatTimeOnly } from './dayPlanUtils';
 
 export default function MorningBriefingPanel({
     variant = 'home',
@@ -10,6 +10,7 @@ export default function MorningBriefingPanel({
     skippedCount = 0,
     loading = false,
     error = '',
+    effectivePlanStart = null,
     onConfirm,
     onRegenerate,
 }) {
@@ -81,6 +82,9 @@ export default function MorningBriefingPanel({
             </div>
 
             <div className={styles.importantRow}>
+                {effectivePlanStart && (
+                    <span>Your flexible plan starts at {formatTimeOnly(effectivePlanStart)}.</span>
+                )}
                 <span>{dayPlan.tightSpotSummary || 'No tight transitions'}</span>
                 {dayPlan.changedFromConfirmed && <strong>This regenerated plan differs from the confirmed plan.</strong>}
             </div>

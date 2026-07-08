@@ -28,8 +28,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -57,6 +59,21 @@ public class DayPlanService {
 
     @Transactional
     public DayPlanResponse generatePlan(Long customerId, LocalDate date) {
+        return generatePlan(customerId, date, null);
+    }
+
+    @Transactional
+    public DayPlanResponse generatePlan(Long customerId, LocalDate date, LocalDateTime startAfter) {
+        return generatePlan(customerId, date, startAfter, Map.of());
+    }
+
+    @Transactional
+    public DayPlanResponse generatePlan(
+            Long customerId,
+            LocalDate date,
+            LocalDateTime startAfter,
+            Map<Long, Integer> durationOverrides
+    ) {
         DayPlan plan = dayPlanRepository.findByCustomerIdAndPlanDate(customerId, date)
                 .orElseGet(() -> {
                     DayPlan created = new DayPlan();
@@ -76,7 +93,7 @@ public class DayPlanService {
                 .map(this::copyDetached)
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        List<DayPlanItem> generatedItems = generateItems(customerId, date, skippedTaskIds);
+        List<DayPlanItem> generatedItems = generateItems(customerId, date, skippedTaskIds, startAfter, durationOverrides);
         generatedItems.addAll(preservedSkippedItems);
         generatedItems.sort(Comparator.comparing(DayPlanItem::getStartDateTime).thenComparing(item -> item.getId() == null ? 0L : item.getId()));
 
@@ -173,8 +190,48 @@ public class DayPlanService {
 
     @Transactional
     public DayPlanResponse regenerate(Long customerId, Long planId) {
+        return regenerate(customerId, planId, null);
+    }
+
+    @Transactional
+    public DayPlanResponse regenerate(Long customerId, Long planId, LocalDateTime startAfter) {
         DayPlan plan = requireOwnedPlan(customerId, planId);
-        return generatePlan(customerId, plan.getPlanDate());
+        return generatePlan(customerId, plan.getPlanDate(), startAfter);
+    }
+
+    @Transactional
+    public DayPlanResponse rescheduleFlexibleItem(
+            Long customerId,
+            Long planId,
+            Long itemId,
+            LocalDateTime startAfter,
+            String reason,
+            Integer remainingMinutes
+    ) {
+        DayPlan plan = requireOwnedPlan(customerId, planId);
+        DayPlanItem item = requireItem(plan, itemId);
+        if (TaskType.FIXED.name().equalsIgnoreCase(item.getTaskTypeSnapshot())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fixed tasks cannot be rescheduled from follow-up");
+        }
+        if (item.getStatus() == DayPlanItemStatus.COMPLETED
+                || item.getStatus() == DayPlanItemStatus.SKIPPED
+                || item.getStatus() == DayPlanItemStatus.FREE_TIME) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Item is no longer reschedulable");
+        }
+
+        item.setStatus(DayPlanItemStatus.REPLACED);
+        item.setActionSource(DayPlanActionSource.USER_MODIFIED);
+        item.setNotes("Rescheduled from follow-up" + (reason != null && !reason.isBlank() ? ": " + reason : "")
+                + (remainingMinutes != null && remainingMinutes > 0 ? "; remaining " + remainingMinutes + " minutes" : ""));
+        refreshPlanSummary(plan);
+        dayPlanRepository.save(plan);
+
+        LocalDateTime effectiveStart = startAfter != null ? startAfter : LocalDateTime.now();
+        Map<Long, Integer> durationOverrides = new HashMap<>();
+        if (item.getTaskId() != null && remainingMinutes != null && remainingMinutes > 0) {
+            durationOverrides.put(item.getTaskId(), remainingMinutes);
+        }
+        return generatePlan(customerId, plan.getPlanDate(), effectiveStart, durationOverrides);
     }
 
     private DayPlan requireOwnedPlan(Long customerId, Long planId) {
@@ -193,9 +250,15 @@ public class DayPlanService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Day plan item not found"));
     }
 
-    private List<DayPlanItem> generateItems(Long customerId, LocalDate date, Set<Long> skippedTaskIds) {
+    private List<DayPlanItem> generateItems(
+            Long customerId,
+            LocalDate date,
+            Set<Long> skippedTaskIds,
+            LocalDateTime startAfter,
+            Map<Long, Integer> durationOverrides
+    ) {
         try {
-            return taskSchedulerService.scheduleTasksForCustomer(customerId, skippedTaskIds)
+            return taskSchedulerService.scheduleTasksForCustomer(customerId, skippedTaskIds, startAfter, durationOverrides)
                     .getScheduledTasks()
                     .stream()
                     .flatMap(scheduledTask -> toItems(scheduledTask, date).stream())
@@ -259,6 +322,7 @@ public class DayPlanService {
     private List<DayPlanItem> activeItems(DayPlan plan) {
         return plan.getItems().stream()
                 .filter(item -> item.getStatus() != DayPlanItemStatus.SKIPPED)
+                .filter(item -> item.getStatus() != DayPlanItemStatus.REPLACED)
                 .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
                 .toList();
     }
@@ -286,6 +350,7 @@ public class DayPlanService {
     private Integer freeMinutesBetween(List<DayPlanItem> items) {
         List<DayPlanItem> active = items.stream()
                 .filter(item -> item.getStatus() != DayPlanItemStatus.SKIPPED)
+                .filter(item -> item.getStatus() != DayPlanItemStatus.REPLACED)
                 .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
                 .toList();
         int minutes = 0;
@@ -306,6 +371,7 @@ public class DayPlanService {
         int tight = 0;
         List<DayPlanItem> active = items.stream()
                 .filter(item -> item.getStatus() != DayPlanItemStatus.SKIPPED)
+                .filter(item -> item.getStatus() != DayPlanItemStatus.REPLACED)
                 .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
                 .toList();
         for (int i = 1; i < active.size(); i++) {

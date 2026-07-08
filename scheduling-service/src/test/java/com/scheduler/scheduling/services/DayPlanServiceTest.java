@@ -65,7 +65,7 @@ class DayPlanServiceTest {
     void generatedDayPlanIsPersistedChronologically() {
         LocalDate date = LocalDate.of(2026, 7, 4);
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.empty());
-        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class))).thenReturn(schedule(
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule(
                 flexibleTask(2L, "Later", "Duty"),
                 slot(date.atTime(14, 0), date.atTime(15, 0)),
                 flexibleTask(1L, "Earlier", "Health"),
@@ -112,13 +112,13 @@ class DayPlanServiceTest {
         plan.setPlanDate(date);
         when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
-        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class))).thenReturn(emptySchedule());
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(emptySchedule());
 
         service.regenerate(123L, 10L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<Long>> skippedCaptor = ArgumentCaptor.forClass(Collection.class);
-        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), skippedCaptor.capture());
+        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), skippedCaptor.capture(), any(), any());
         assertThat(skippedCaptor.getValue()).containsExactly(44L);
     }
 
@@ -137,7 +137,7 @@ class DayPlanServiceTest {
                 "old-format-extra-field"));
         when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
-        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class))).thenReturn(schedule(
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule(
                 flexibleTask(44L, "Grocery shopping", "Duty"),
                 slot(date.atTime(10, 0), date.atTime(10, 30)),
                 flexibleTask(45L, "Ignored", "Health"),
@@ -166,6 +166,36 @@ class DayPlanServiceTest {
         assertThat(createCaptor.getValue().getType()).isEqualTo(com.scheduler.taskmanagement.grpc.TaskType.FIXED);
         assertThat(response.items().getFirst().status()).isEqualTo(DayPlanItemStatus.FREE_TIME);
         assertThat(response.items().getFirst().taskId()).isEqualTo(99L);
+    }
+
+    @Test
+    void generatePassesEffectivePlanStartToScheduler() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        LocalDateTime startAfter = date.atTime(11, 15);
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.empty());
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(emptySchedule());
+
+        service.generatePlan(123L, date, startAfter);
+
+        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any());
+    }
+
+    @Test
+    void rescheduleWithRemainingMinutesPassesDurationOverride() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        LocalDateTime startAfter = date.atTime(11, 0);
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
+        plan.setPlanDate(date);
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(emptySchedule());
+
+        service.rescheduleFlexibleItem(123L, 10L, 100L, startAfter, "STARTED_NOT_FINISHED", 25);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<Long, Integer>> overridesCaptor = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), overridesCaptor.capture());
+        assertThat(overridesCaptor.getValue()).containsEntry(44L, 25);
     }
 
     private DayPlan planWithItem(Long customerId, Long planId, Long itemId, Long taskId, DayPlanItemStatus status) {

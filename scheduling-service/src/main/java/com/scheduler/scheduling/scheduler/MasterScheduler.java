@@ -59,6 +59,15 @@ public class MasterScheduler {
             List<TaskDTO> tasks,
             @Nullable DistanceMatrixProto distanceMatrix
     ) {
+        return scheduleTasksForCustomer(customer, tasks, distanceMatrix, null);
+    }
+
+    public List<ScheduledTask> scheduleTasksForCustomer(
+            CustomerDTO customer,
+            List<TaskDTO> tasks,
+            @Nullable DistanceMatrixProto distanceMatrix,
+            @Nullable LocalDateTime flexibleStartAfter
+    ) {
         if (customer == null) {
             throw new IllegalArgumentException("CustomerDTO must not be null");
         }
@@ -151,6 +160,8 @@ public class MasterScheduler {
         } else {
             System.out.println("No SchedulingStrategy registered for FixedTaskDTO – skipping fixed tasks.");
         }
+
+        segments = trimSegmentsBefore(segments, flexibleStartAfter);
 
         // ------------------------------------
         // 2) Schedule FLEXIBLE TASKS (routing-aware order)
@@ -740,6 +751,30 @@ public class MasterScheduler {
             );
             for (TimeSlot ts : splits) {
                 result.add(new ZoneSegment(ts, seg.evaluator, seg.quietFallback, seg.definition));
+            }
+        }
+        return result;
+    }
+
+    private List<ZoneSegment> trimSegmentsBefore(List<ZoneSegment> segments, @Nullable LocalDateTime startAfter) {
+        if (startAfter == null || segments == null || segments.isEmpty()) {
+            return segments != null ? segments : Collections.emptyList();
+        }
+
+        List<ZoneSegment> result = new ArrayList<>();
+        for (ZoneSegment segment : segments) {
+            if (segment.slot.getEnd().isAfter(startAfter)) {
+                LocalDateTime start = segment.slot.getStart().isBefore(startAfter)
+                        ? startAfter
+                        : segment.slot.getStart();
+                if (start.isBefore(segment.slot.getEnd())) {
+                    result.add(new ZoneSegment(
+                            new TimeSlot(start, segment.slot.getEnd()),
+                            segment.evaluator,
+                            segment.quietFallback,
+                            segment.definition
+                    ));
+                }
             }
         }
         return result;

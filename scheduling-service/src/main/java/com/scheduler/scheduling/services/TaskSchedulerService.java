@@ -28,7 +28,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.time.LocalDateTime;
 
 @Service
 public class TaskSchedulerService {
@@ -67,6 +69,19 @@ public class TaskSchedulerService {
     }
 
     public Schedule scheduleTasksForCustomer(Long customerId, Collection<Long> excludedTaskIds) {
+        return scheduleTasksForCustomer(customerId, excludedTaskIds, null);
+    }
+
+    public Schedule scheduleTasksForCustomer(Long customerId, Collection<Long> excludedTaskIds, LocalDateTime flexibleStartAfter) {
+        return scheduleTasksForCustomer(customerId, excludedTaskIds, flexibleStartAfter, Map.of());
+    }
+
+    public Schedule scheduleTasksForCustomer(
+            Long customerId,
+            Collection<Long> excludedTaskIds,
+            LocalDateTime flexibleStartAfter,
+            Map<Long, Integer> durationOverrides
+    ) {
         // customer
         CustomerProto custProto = customerStub.getCustomerById(
                 CustomerRequest.newBuilder().setId(customerId).build()
@@ -87,6 +102,13 @@ public class TaskSchedulerService {
             tasks = tasks.stream()
                     .filter(task -> task.getId() == null || !excluded.contains(task.getId()))
                     .toList();
+        }
+        if (durationOverrides != null && !durationOverrides.isEmpty()) {
+            tasks.stream()
+                    .filter(task -> task instanceof com.scheduler.commoncode.dto.FlexibleTaskDTO)
+                    .filter(task -> task.getId() != null && durationOverrides.containsKey(task.getId()))
+                    .map(com.scheduler.commoncode.dto.FlexibleTaskDTO.class::cast)
+                    .forEach(task -> task.setEstimatedDuration(Math.max(5, durationOverrides.get(task.getId()))));
         }
 
         // zone config
@@ -130,7 +152,8 @@ public class TaskSchedulerService {
         List<ScheduledTask> scheduledTasks = masterScheduler.scheduleTasksForCustomer(
                 customerDto,
                 tasks,
-                dm
+                dm,
+                flexibleStartAfter
         );
 
         Schedule schedule = new Schedule();
