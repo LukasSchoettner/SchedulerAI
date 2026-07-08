@@ -31,6 +31,7 @@ public interface ZoneDefinitionDtoMapperCom {
         dto.setPrimaryCategory(proto.getPrimaryCategory().isBlank() ? null : proto.getPrimaryCategory());
         dto.setSecondaryCategories(new HashSet<>(proto.getSecondaryCategoriesList()));
         dto.setBehaviorMode(proto.getBehaviorMode().isBlank() ? "STRICT" : proto.getBehaviorMode());
+        dto.setTargetPlacementMode(proto.getTargetPlacementMode().isBlank() ? "ALLOW_ELSEWHERE" : proto.getTargetPlacementMode());
         return dto;
     }
 
@@ -59,6 +60,7 @@ public interface ZoneDefinitionDtoMapperCom {
             builder.addAllSecondaryCategories(dto.getSecondaryCategories());
         }
         builder.setBehaviorMode(dto.getBehaviorMode() != null ? dto.getBehaviorMode() : "STRICT");
+        builder.setTargetPlacementMode(dto.getTargetPlacementMode() != null ? dto.getTargetPlacementMode() : "ALLOW_ELSEWHERE");
         return builder.build();
     }
 }

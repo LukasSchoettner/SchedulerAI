@@ -29,6 +29,9 @@ public interface ZoneGrpcMapper {
         dto.setPrimaryCategory(proto.getPrimaryCategory().isBlank() ? null : proto.getPrimaryCategory());
         dto.setSecondaryCategories(new HashSet<>(proto.getSecondaryCategoriesList()));
         dto.setBehaviorMode(proto.getBehaviorMode().isBlank() ? "STRICT" : proto.getBehaviorMode());
+        dto.setTargetPlacementMode(proto.getTargetPlacementMode().isBlank()
+                ? "ALLOW_ELSEWHERE"
+                : proto.getTargetPlacementMode());
         return dto;
     }
 }

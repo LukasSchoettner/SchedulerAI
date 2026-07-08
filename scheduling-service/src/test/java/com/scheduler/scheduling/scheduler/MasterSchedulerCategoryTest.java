@@ -192,7 +192,7 @@ class MasterSchedulerCategoryTest {
         FlexibleTaskDTO health = flexibleTask("Health");
         health.setPriority(5);
         CustomerDTO customer = customerWithZones(List.of(
-                zone("Work with override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 3)
+                zone("Work with override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 5)
         ));
         customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
         customer.getZoneConfiguration().setEndTime(LocalTime.of(10, 0));
@@ -266,11 +266,11 @@ class MasterSchedulerCategoryTest {
     }
 
     @Test
-    void legacyPriorityOverrideThreeDoesNotAllowNormalPriorityTasksIntoOtherCategoryZones() {
+    void strictUrgentOverrideDoesNotAllowPriorityFourTasksIntoOtherCategoryWindows() {
         FlexibleTaskDTO social = flexibleTask("Social");
-        social.setPriority(3);
+        social.setPriority(4);
         CustomerDTO customer = customerWithZones(List.of(
-                zone("Work with old override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 3)
+                zone("Work with urgent override", 127, LocalTime.of(8, 0), LocalTime.of(10, 0), Set.of("Work"), 5)
         ));
         customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
         customer.getZoneConfiguration().setEndTime(LocalTime.of(10, 0));
@@ -378,7 +378,7 @@ class MasterSchedulerCategoryTest {
         work.setPriority(5);
         CustomerDTO customer = customerWithZones(List.of(
                 quietZone("Quiet morning", LocalTime.of(0, 0), LocalTime.of(8, 0)),
-                zone("Work day", 127, LocalTime.of(8, 0), LocalTime.of(17, 0), Set.of("Work"), 3)
+                zone("Work day", 127, LocalTime.of(8, 0), LocalTime.of(17, 0), Set.of("Work"), 5)
         ));
         customer.getZoneConfiguration().setStartTime(LocalTime.of(0, 0));
         customer.getZoneConfiguration().setEndTime(LocalTime.of(23, 59));
@@ -393,6 +393,50 @@ class MasterSchedulerCategoryTest {
         assertThat(scheduled).hasSize(1);
         assertThat(scheduled.get(0).getAssignedSlots().get(0).getStart().toLocalTime())
                 .isAfterOrEqualTo(LocalTime.of(8, 0));
+    }
+
+    @Test
+    void preferredPlanningWindowAllowsTargetCategoryInFallbackDefaultTime() {
+        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        FlexibleTaskDTO work = flexibleTask("Work");
+        work.setEarliestStartDateTime(tomorrow);
+        work.setLatestEndDateTime(tomorrow.plusHours(2));
+        work.setDueDate(tomorrow.plusHours(2));
+
+        ZoneDefinitionDTO preferred = generalizedZone("Preferred work", "Work", Set.of(), "PREFERRED", null);
+        preferred.setStartTime(LocalTime.of(8, 0));
+        preferred.setEndTime(LocalTime.of(9, 0));
+        preferred.setTargetPlacementMode("ALLOW_ELSEWHERE");
+        CustomerDTO customer = customerWithZones(List.of(preferred));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(12, 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(customer, List.of(work), null);
+
+        assertThat(scheduled).hasSize(1);
+        assertThat(scheduled.get(0).getAssignedSlots().get(0).getStart().toLocalTime())
+                .isAfterOrEqualTo(LocalTime.of(9, 0));
+    }
+
+    @Test
+    void keepInsidePlanningWindowExcludesTargetCategoryFromFallbackDefaultTime() {
+        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        FlexibleTaskDTO work = flexibleTask("Work");
+        work.setEarliestStartDateTime(tomorrow);
+        work.setLatestEndDateTime(tomorrow.plusHours(2));
+        work.setDueDate(tomorrow.plusHours(2));
+
+        ZoneDefinitionDTO keepInside = generalizedZone("Protected work", "Work", Set.of(), "PREFERRED", null);
+        keepInside.setStartTime(LocalTime.of(8, 0));
+        keepInside.setEndTime(LocalTime.of(9, 0));
+        keepInside.setTargetPlacementMode("KEEP_INSIDE_WINDOW");
+        CustomerDTO customer = customerWithZones(List.of(keepInside));
+        customer.getZoneConfiguration().setStartTime(LocalTime.of(8, 0));
+        customer.getZoneConfiguration().setEndTime(LocalTime.of(12, 0));
+
+        List<ScheduledTask> scheduled = scheduler.scheduleTasksForCustomer(customer, List.of(work), null);
+
+        assertThat(scheduled).isEmpty();
     }
 
     private SchedulingStrategy<FixedTaskDTO> fixedStrategy() {
@@ -454,6 +498,7 @@ class MasterSchedulerCategoryTest {
         zone.setEndTime(endTime);
         zone.setAllowedCategories(allowedCategories);
         zone.setPriorityOverrideThreshold(priorityOverrideThreshold);
+        zone.setTargetPlacementMode("KEEP_INSIDE_WINDOW");
         return zone;
     }
 

@@ -23,6 +23,7 @@ public class ZoneDefinitionProtoMapper {
         def.setPrimaryCategory(proto.getPrimaryCategory().isBlank() ? null : proto.getPrimaryCategory());
         def.setSecondaryCategories(new HashSet<>(proto.getSecondaryCategoriesList()));
         def.setBehaviorMode(proto.getBehaviorMode().isBlank() ? "STRICT" : proto.getBehaviorMode());
+        def.setTargetPlacementMode(proto.getTargetPlacementMode().isBlank() ? "ALLOW_ELSEWHERE" : proto.getTargetPlacementMode());
         def.setZoneConfigId(proto.getZoneConfigId());
         return def;
     }
@@ -50,6 +51,7 @@ public class ZoneDefinitionProtoMapper {
             builder.addAllSecondaryCategories(entity.getSecondaryCategories());
         }
         builder.setBehaviorMode(entity.getBehaviorMode() != null ? entity.getBehaviorMode() : "STRICT");
+        builder.setTargetPlacementMode(entity.getTargetPlacementMode() != null ? entity.getTargetPlacementMode() : "ALLOW_ELSEWHERE");
 
         return builder.build();
     }

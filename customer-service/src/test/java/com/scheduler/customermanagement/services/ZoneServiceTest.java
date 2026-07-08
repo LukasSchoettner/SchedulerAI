@@ -92,10 +92,11 @@ class ZoneServiceTest {
                 LocalTime.of(11, 30),
                 Set.of("work"),
                 Set.of("errands"),
-                4,
+                5,
                 "Work",
                 Set.of("Duty", "Health"),
-                "PREFERRED"
+                "PREFERRED",
+                "KEEP_INSIDE_WINDOW"
         );
 
         when(configRepo.findById(10L)).thenReturn(Optional.of(owned));
@@ -114,10 +115,23 @@ class ZoneServiceTest {
         assertThat(saved.getEndTime()).isEqualTo(LocalTime.of(11, 30));
         assertThat(saved.getAllowedCategories()).containsExactlyInAnyOrder("Work", "Duty", "Health");
         assertThat(saved.getExcludedCategories()).containsExactly("errands");
-        assertThat(saved.getPriorityOverrideThreshold()).isEqualTo(4);
+        assertThat(saved.getPriorityOverrideThreshold()).isEqualTo(5);
         assertThat(saved.getPrimaryCategory()).isEqualTo("Work");
         assertThat(saved.getSecondaryCategories()).containsExactlyInAnyOrder("Duty", "Health");
         assertThat(saved.getBehaviorMode()).isEqualTo("PREFERRED");
+        assertThat(saved.getTargetPlacementMode()).isEqualTo("KEEP_INSIDE_WINDOW");
+    }
+
+    @Test
+    void deleteConfigDeletesChildDefinitionsBeforeProfile() {
+        ZoneConfiguration owned = config(10L, 42L, true);
+        when(configRepo.findById(10L)).thenReturn(Optional.of(owned));
+
+        boolean deleted = zoneService.deleteZoneConfig(42L, 10L);
+
+        assertThat(deleted).isTrue();
+        verify(defRepo).deleteByZoneConfigId(10L);
+        verify(configRepo).delete(owned);
     }
 
     private ZoneConfiguration config(Long id, Long customerId, boolean active) {

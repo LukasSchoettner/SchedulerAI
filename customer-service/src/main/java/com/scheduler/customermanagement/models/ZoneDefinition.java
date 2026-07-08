@@ -48,6 +48,8 @@ public class ZoneDefinition {
 
     private String behaviorMode = "STRICT";
 
+    private String targetPlacementMode = "ALLOW_ELSEWHERE";
+
     @Column(name = "zone_config_id", nullable = false)
     private Long zoneConfigId;
 

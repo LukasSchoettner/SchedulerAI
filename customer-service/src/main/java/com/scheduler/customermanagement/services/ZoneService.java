@@ -39,6 +39,7 @@ public class ZoneService {
     }
 
     public ZoneConfigurationDTO createZoneConfig(Long customerId, String configName, boolean active, LocalTime startTime, LocalTime endTime) {
+        validateConfig(configName, startTime, endTime);
         ZoneConfiguration config = new ZoneConfiguration();
         config.setCustomerId(customerId);
         config.setName(configName);
@@ -120,6 +121,7 @@ public class ZoneService {
         if (dto.getPrimaryCategory() != null) existing.setPrimaryCategory(dto.getPrimaryCategory());
         if (dto.getSecondaryCategories() != null) existing.setSecondaryCategories(dto.getSecondaryCategories());
         if (dto.getBehaviorMode() != null) existing.setBehaviorMode(dto.getBehaviorMode());
+        if (dto.getTargetPlacementMode() != null) existing.setTargetPlacementMode(dto.getTargetPlacementMode());
         existing.setPriorityOverrideThreshold(dto.getPriorityOverrideThreshold());
         normalizeDefinition(existing);
         return defMapper.toDto(defRepo.save(existing));
@@ -149,15 +151,21 @@ public class ZoneService {
     }
 
     private Integer normalizePriorityOverrideThreshold(Integer threshold) {
-        return threshold != null && threshold > 0 ? threshold : null;
+        return threshold != null && threshold == 5 ? threshold : null;
     }
 
     private void normalizeDefinition(ZoneDefinition def) {
+        validateDefinition(def);
         def.setPriorityOverrideThreshold(normalizePriorityOverrideThreshold(def.getPriorityOverrideThreshold()));
         def.setBehaviorMode(normalizeBehaviorMode(def.getBehaviorMode()));
+        def.setTargetPlacementMode(normalizeTargetPlacementMode(def.getTargetPlacementMode()));
         def.setPrimaryCategory(blankToNull(def.getPrimaryCategory()));
         if (def.getSecondaryCategories() == null) {
             def.setSecondaryCategories(new LinkedHashSet<>());
+        } else if (def.getPrimaryCategory() != null) {
+            def.setSecondaryCategories(def.getSecondaryCategories().stream()
+                    .filter(category -> !def.getPrimaryCategory().equals(category))
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
         }
         if (def.getAllowedCategories() == null) {
             def.setAllowedCategories(new LinkedHashSet<>());
@@ -181,6 +189,54 @@ public class ZoneService {
             return "PREFERRED";
         }
         return "STRICT";
+    }
+
+    private String normalizeTargetPlacementMode(String targetPlacementMode) {
+        if ("PREFER_INSIDE_WINDOW".equalsIgnoreCase(targetPlacementMode)) {
+            return "PREFER_INSIDE_WINDOW";
+        }
+        if ("KEEP_INSIDE_WINDOW".equalsIgnoreCase(targetPlacementMode)) {
+            return "KEEP_INSIDE_WINDOW";
+        }
+        return "ALLOW_ELSEWHERE";
+    }
+
+    private void validateConfig(String name, LocalTime startTime, LocalTime endTime) {
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scheduling Profile name is required");
+        }
+        if (startTime == null || endTime == null || !startTime.isBefore(endTime)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default flexible planning window is invalid");
+        }
+        if (java.time.Duration.between(startTime, endTime).toMinutes() < 60) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default flexible planning window must be at least 1 hour");
+        }
+    }
+
+    private void validateDefinition(ZoneDefinition def) {
+        if (def.getTitle() == null || def.getTitle().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Planning Window name is required");
+        }
+        if (def.getDayMask() == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select at least one day");
+        }
+        if (def.getStartTime() == null || def.getEndTime() == null || !def.getStartTime().isBefore(def.getEndTime())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Planning Window time range is invalid");
+        }
+        if (java.time.Duration.between(def.getStartTime(), def.getEndTime()).toMinutes() < 15) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Planning Window must be at least 15 minutes");
+        }
+        if (blankToNull(def.getPrimaryCategory()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Main focus is required");
+        }
+        String primary = blankToNull(def.getPrimaryCategory());
+        if (primary != null && def.getSecondaryCategories() != null && def.getSecondaryCategories().contains(primary)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Main focus cannot also be listed as also allowed");
+        }
+        Integer threshold = def.getPriorityOverrideThreshold();
+        if (threshold != null && threshold != 5) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Urgent override must be priority 5 or off");
+        }
     }
 
     private String blankToNull(String value) {

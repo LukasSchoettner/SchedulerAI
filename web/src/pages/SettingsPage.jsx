@@ -10,12 +10,12 @@ const SETTINGS = [
     {
         to: '/settings/scheduler',
         title: 'Scheduler Preferences',
-        text: 'Configure category priority, planning windows, zones, and pauses.',
+        text: 'Configure category priority, Planning Windows, and pauses.',
     },
     {
         to: '/settings/zones',
-        title: 'Zones',
-        text: 'Manage scheduling windows and category guidance.',
+        title: 'Scheduling Profiles',
+        text: 'Manage Scheduling Profiles and Planning Windows.',
     },
     {
         to: '/settings/locations',
@@ -35,7 +35,7 @@ export default function SettingsPage() {
             <header className={styles.header}>
                 <span className={styles.eyebrow}>Settings</span>
                 <h2>Settings</h2>
-                <p>Manage profile, scheduler preferences, zones, saved locations, and notifications.</p>
+                <p>Manage profile, scheduler preferences, Scheduling Profiles, saved locations, and notifications.</p>
             </header>
 
             <div className={styles.grid}>

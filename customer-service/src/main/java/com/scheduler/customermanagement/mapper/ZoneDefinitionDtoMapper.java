@@ -18,6 +18,7 @@ public interface ZoneDefinitionDtoMapper {
     @Mapping(target="primaryCategory",       source="primaryCategory")
     @Mapping(target="secondaryCategories",   source="secondaryCategories")
     @Mapping(target="behaviorMode",          source="behaviorMode")
+    @Mapping(target="targetPlacementMode",   source="targetPlacementMode")
     ZoneDefinitionDTO toDto(ZoneDefinition entity);
 
     ZoneDefinition toDomain(ZoneDefinitionDTO dto);

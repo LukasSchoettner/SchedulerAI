@@ -22,4 +22,5 @@ public class ZoneDefinitionDTO {
     private String primaryCategory;
     private Set<String> secondaryCategories;
     private String behaviorMode;
+    private String targetPlacementMode;
 }

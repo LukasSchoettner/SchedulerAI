@@ -1,6 +1,6 @@
 # Scheduler
 
-This repository contains a Dockerized task scheduler application with a React frontend, Spring Boot microservices, PostgreSQL databases, JWT authentication, task management, saved locations, scheduler onboarding, generalized zone configuration, schedule generation, and a morning briefing for reviewing the generated day plan.
+This repository contains a Dockerized task scheduler application with a React frontend, Spring Boot microservices, PostgreSQL databases, JWT authentication, task management, saved locations, scheduler onboarding, Scheduling Profiles with Planning Windows, schedule generation, and a morning briefing for reviewing the generated day plan.
 
 ## Current Hand-In Build
 
@@ -20,7 +20,7 @@ Use the Register form to create a fresh account, then log in and try the main wo
 
 1. Create tasks.
 2. Add saved locations.
-3. Configure Scheduler Preferences: category priority, normal planning time, zones, and pauses.
+3. Configure Scheduler Preferences: category priority, normal planning time, Planning Windows, and pauses.
 4. Open Home to review the morning briefing and confirm today's generated day plan.
 5. Use Schedule to correct the detailed timeline, skip tasks for today if needed, reserve `Free time`, mark scheduled tasks complete, and preview the proposed week.
 
@@ -50,12 +50,13 @@ The current build supports:
 - Registration/login with JWT authentication.
 - Task creation for fixed, flexible, recurring-style, multi-session, and project-style workflows.
 - Saved locations with membership-based limits.
-- Scheduler onboarding for category priority ranking, normal planning time, optional zone setup, and pause duration.
-- Generalized zones with a primary category, secondary categories, strict/preferred behavior, and priority override.
-- Schedule generation with fixed tasks placed first, flexible tasks guided by zones, category priority, task priority, deadlines, and pauses.
+- Scheduler onboarding for category priority ranking, normal planning time, optional Planning Window setup, and pause duration.
+- Scheduling Profiles that group one or more Planning Windows. A Scheduling Profile can be activated, edited, or deleted from Settings.
+- Planning Windows with a main focus category, also-allowed categories, strict/preferred behavior, urgent override, and target placement mode.
+- Schedule generation with fixed tasks placed first, flexible tasks guided by Planning Windows, category priority, task priority, deadlines, and pauses.
 - Home daily dashboard with morning briefing, next task, today-at-a-glance preview, and quick links.
 - Schedule correction workspace with the detailed Today timeline plus Week calendar view, category filters, and automatic visible time range.
-- Settings area for profile, Scheduler Preferences, zones, saved locations, and notification placeholder settings.
+- Settings area for profile, Scheduler Preferences, Scheduling Profiles, saved locations, and notification placeholder settings.
 - Backend-persisted `DayPlan` and `DayPlanItem` records in the scheduling service.
 - Morning briefing actions backed by API calls:
   - fixed tasks can be kept, opened, or marked completed;
@@ -70,10 +71,15 @@ Notifications are not a completed user-facing feature yet. The notification serv
 ## Important Current Rules
 
 - Fixed tasks block real occupied time.
-- Zones guide flexible task placement; zones do not make whole categories fixed.
-- A strict zone permits primary and secondary categories, plus unrelated priority-5 tasks when override is enabled.
-- A preferred zone tries primary and secondary categories first, then allows other suitable tasks when needed.
-- Weekday-only zones only constrain those weekdays; they no longer block the same category on unrelated days.
+- Scheduling Profiles hold Planning Windows; the active Scheduling Profile guides flexible task placement.
+- Planning Windows guide flexible task placement; they do not make whole categories fixed.
+- A strict Planning Window permits the main focus and also-allowed categories, plus unrelated priority-5 tasks when urgent override is enabled.
+- A preferred Planning Window tries the main focus and also-allowed categories first, then allows other suitable tasks when needed.
+- Target placement controls fallback behavior:
+  - `ALLOW_ELSEWHERE`: target categories may also be scheduled outside this Planning Window.
+  - `PREFER_INSIDE_WINDOW`: target categories are currently allowed elsewhere, with a future TODO to rank outside-window placement lower.
+  - `KEEP_INSIDE_WINDOW`: target categories are excluded from fallback/default segments.
+- Weekday-only Planning Windows only constrain those weekdays; they no longer block the same category on unrelated days.
 - Category priority affects flexible task ordering, not whether a task is fixed.
 - Fixedness belongs to the individual task type. Zones and categories do not convert flexible tasks into fixed tasks.
 - "Skip today" is a day-plan decision. It does not delete, complete, or globally cancel the backend task.
@@ -91,6 +97,34 @@ The day plan is displayed chronologically. Each scheduled item has a dropdown wi
 
 Confirmed day plans are now backend records owned by scheduling-service. Browser storage is no longer the primary persistence path for confirmations, skip-today decisions, completion updates, or `Free time` reservations.
 
+## Scheduling Profiles And Planning Windows
+
+The old user-facing "Zone" settings have been replaced by clearer language:
+
+- A **Scheduling Profile** is the active scheduling setup for a customer, such as Regular, Exam Phase, Vacation, or Recovery Mode.
+- A **Default flexible planning window** is the broad fallback time range where flexible tasks may be considered.
+- A **Planning Window** is a guided rule for part of the week, such as Work mornings, Sport evenings, Duties on Saturday, or Recovery time.
+
+Planning Windows collect:
+
+- title;
+- days and start/end time;
+- main focus category;
+- also-allowed categories;
+- Preferred or Strict behavior;
+- optional Strict-only urgent override;
+- target placement mode.
+
+The normal UI intentionally hides raw implementation details such as `dayMask`, `allowedCategories`, `excludedCategories`, `priorityOverrideThreshold`, `behaviorMode`, and backend "zone definition" terminology. Existing backend endpoints remain under `/customers/zones/**` for compatibility.
+
+Current scheduler behavior:
+
+- Fixed tasks still block real occupied time first.
+- Preferred Planning Windows guide flexible placement but no longer trap their target category inside the window.
+- Strict Planning Windows reject unrelated flexible tasks unless urgent override is enabled and the task has priority 5.
+- `KEEP_INSIDE_WINDOW` excludes target categories from fallback/default segments.
+- `ALLOW_ELSEWHERE` and the Phase 1 version of `PREFER_INSIDE_WINDOW` allow target categories to use fallback/default segments.
+
 ## Current Limitations
 
 - Day-plan persistence is implemented in scheduling-service, but there is not yet a separate reviewed/evening-check workflow.
@@ -98,6 +132,8 @@ Confirmed day plans are now backend records owned by scheduling-service. Browser
 - Recurrence is stored as text. There is no durable occurrence model yet, so true per-occurrence skip/move/complete behavior is future work.
 - Move-to-another-day, shorten-duration, and replace-task actions are visible as future actions but disabled in the MVP UI.
 - Notifications are not a completed user-facing feature yet. The notification service is part of the Docker stack and tasks have `reminderDate` fields, but there is no finished reminder delivery UI, WebSocket push flow, or in-app notification inbox.
+- The Planning Window wizard is the current editing surface. The older backend route and class names still use "zone" internally for compatibility.
+- `PREFER_INSIDE_WINDOW` does not yet lower the ranking of outside-window placement; it behaves like `ALLOW_ELSEWHERE` for Phase 1 and is prepared for future refinement.
 - Routing uses an internal distance estimate, not a live external maps API.
 - The scheduler is heuristic-based, not a full mathematical constraint optimizer.
 
@@ -118,6 +154,7 @@ Recommended next step: build the evening review on top of persisted day plans so
 - Implement the evening review screen using persisted day plans and task completion status.
 - Productize notifications with an in-app inbox or push/WebSocket delivery.
 - Add browser-level tests for schedule generation, briefing actions, skip-today behavior, and `Free time` reservation.
+- Improve `PREFER_INSIDE_WINDOW` ranking so outside-window placements are allowed but less attractive than matching Planning Window placements.
 
 ## Original Planning Notes
 

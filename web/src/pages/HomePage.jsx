@@ -323,9 +323,9 @@ function QuickLinks({ taskCount, locationCount }) {
             <div className={styles.linkGrid}>
                 <QuickLink to="/tasks" title="Add task" meta={`${taskCount ?? '...'} tasks`} />
                 <QuickLink to="/schedule" title="Open full schedule" meta="Adjust today's timeline" />
-                <QuickLink to="/settings/scheduler" title="Scheduler preferences" meta="Priorities, pauses, zones" />
+                <QuickLink to="/settings/scheduler" title="Scheduler preferences" meta="Priorities, pauses, Planning Windows" />
                 <QuickLink to="/settings/locations" title="Saved locations" meta={`${locationCount ?? '...'} saved`} />
-                <QuickLink to="/settings/zones" title="Zones" meta="Scheduling windows" />
+                <QuickLink to="/settings/zones" title="Scheduling Profiles" meta="Planning Windows" />
             </div>
         </section>
     );

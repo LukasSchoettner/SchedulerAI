@@ -613,6 +613,7 @@ public class MasterScheduler {
         }
         return defs.stream()
                 .filter(def -> matchesDayMask(def.getDayMask(), day))
+                .filter(def -> "KEEP_INSIDE_WINDOW".equalsIgnoreCase(targetPlacementMode(def)))
                 .flatMap(def -> zoneTargetCategories(def).stream())
                 .filter(Objects::nonNull)
                 .map(category -> category.trim().toLowerCase(Locale.ROOT))
@@ -705,6 +706,12 @@ public class MasterScheduler {
         Integer threshold = resolvedPriorityOverrideThreshold(def);
         int priority = task.getPriority() != null ? task.getPriority() : 0;
         return threshold != null && priority >= threshold;
+    }
+
+    private String targetPlacementMode(ZoneDefinitionDTO def) {
+        return def.getTargetPlacementMode() != null && !def.getTargetPlacementMode().isBlank()
+                ? def.getTargetPlacementMode()
+                : "ALLOW_ELSEWHERE";
     }
 
     private Set<String> normalizedCategories(Collection<String> categories) {

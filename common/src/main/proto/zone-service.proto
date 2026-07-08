@@ -45,6 +45,7 @@ message ZoneDefinitionProto {
   string primaryCategory = 10;
   repeated string secondaryCategories = 11;
   string behaviorMode = 12;
+  string targetPlacementMode = 13;
 }
 
 // For adding or updating a single zone definition
@@ -60,6 +61,7 @@ message ZoneDefinitionCreateRequest {
   string primaryCategory = 9;
   repeated string secondaryCategories = 10;
   string behaviorMode = 11;
+  string targetPlacementMode = 12;
 }
 
 // gRPC service definition

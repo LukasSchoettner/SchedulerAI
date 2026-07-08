@@ -103,7 +103,11 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
         definition.setPriorityOverrideThreshold(normalizePriorityOverrideThreshold(request.getPriorityOverrideThreshold()));
         definition.setPrimaryCategory(blankToNull(request.getPrimaryCategory()));
         definition.setSecondaryCategories(new LinkedHashSet<>(request.getSecondaryCategoriesList()));
+        if (definition.getPrimaryCategory() != null) {
+            definition.getSecondaryCategories().remove(definition.getPrimaryCategory());
+        }
         definition.setBehaviorMode(normalizeBehaviorMode(request.getBehaviorMode()));
+        definition.setTargetPlacementMode(normalizeTargetPlacementMode(request.getTargetPlacementMode()));
         deriveAllowedCategories(definition);
         definition.setZoneConfigId(zoneConfigId);
         return definition;
@@ -113,6 +117,7 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
     public void deleteZoneConfiguration(ZoneConfigRequest request, StreamObserver<com.google.protobuf.Empty> responseObserver) {
         try {
             if (zoneConfigurationRepository.existsById(request.getId())) {
+                zoneDefinitionRepository.deleteByZoneConfigId(request.getId());
                 zoneConfigurationRepository.deleteById(request.getId());
             }
             responseObserver.onNext(com.google.protobuf.Empty.getDefaultInstance());
@@ -179,6 +184,7 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
                                 .setPrimaryCategory(def.getPrimaryCategory() != null ? def.getPrimaryCategory() : "")
                                 .addAllSecondaryCategories(def.getSecondaryCategories() != null ? def.getSecondaryCategories() : Set.of())
                                 .setBehaviorMode(def.getBehaviorMode() != null ? def.getBehaviorMode() : "STRICT")
+                                .setTargetPlacementMode(def.getTargetPlacementMode() != null ? def.getTargetPlacementMode() : "ALLOW_ELSEWHERE")
                                 .setZoneConfigId(dto.getId())
                                 .build()
                 );
@@ -211,15 +217,16 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
             builder.addAllSecondaryCategories(def.getSecondaryCategories());
         }
         builder.setBehaviorMode(def.getBehaviorMode() != null ? def.getBehaviorMode() : "STRICT");
+        builder.setTargetPlacementMode(def.getTargetPlacementMode() != null ? def.getTargetPlacementMode() : "ALLOW_ELSEWHERE");
         return builder.build();
     }
 
     private static Integer normalizePriorityOverrideThreshold(Integer threshold) {
-        return threshold != null && threshold > 0 ? threshold : null;
+        return threshold != null && threshold == 5 ? threshold : null;
     }
 
     private static int protoPriorityOverrideThreshold(Integer threshold) {
-        return threshold != null && threshold > 0 ? threshold : 0;
+        return threshold != null && threshold == 5 ? threshold : 0;
     }
 
     private static String normalizeBehaviorMode(String behaviorMode) {
@@ -227,6 +234,16 @@ public class ZoneServiceGrpcImpl extends ZoneServiceGrpc.ZoneServiceImplBase {
             return "PREFERRED";
         }
         return "STRICT";
+    }
+
+    private static String normalizeTargetPlacementMode(String targetPlacementMode) {
+        if ("PREFER_INSIDE_WINDOW".equalsIgnoreCase(targetPlacementMode)) {
+            return "PREFER_INSIDE_WINDOW";
+        }
+        if ("KEEP_INSIDE_WINDOW".equalsIgnoreCase(targetPlacementMode)) {
+            return "KEEP_INSIDE_WINDOW";
+        }
+        return "ALLOW_ELSEWHERE";
     }
 
     private static String blankToNull(String value) {
