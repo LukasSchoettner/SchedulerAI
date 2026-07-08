@@ -19,6 +19,7 @@ public class SchedulingPreferenceDTO {
     private Long id;
     private String primaryPriority;
     private List<String> categoryPriorityOrder = new ArrayList<>();
+    private Map<String, Integer> categoryImportance = new HashMap<>();
     private Set<String> fixedCommitmentCategories = new HashSet<>();
     private String workFlexibility;
     private Set<String> healthConstraints = new HashSet<>();

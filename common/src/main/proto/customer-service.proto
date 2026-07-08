@@ -67,6 +67,7 @@ message SchedulingPreferenceProto {
   string temporaryMode = 17;
   string temporaryUntil = 18;
   repeated string categoryPriorityOrder = 19;
+  repeated CategoryIntTargetProto categoryImportance = 20;
 }
 
 message CustomerList {

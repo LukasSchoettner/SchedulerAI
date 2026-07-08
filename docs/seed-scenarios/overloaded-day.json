@@ -1,0 +1,19 @@
+{
+  "name": "Overloaded Day",
+  "schedulingProfile": {
+    "name": "Overloaded Day",
+    "defaultFlexiblePlanningWindow": { "startTime": "09:00", "endTime": "12:00" },
+    "planningWindows": []
+  },
+  "tasks": [
+    { "title": "Client appointment", "type": "FIXED", "category": "Work", "start": "10:00", "end": "11:00", "priority": 4 },
+    { "title": "Project report", "type": "FLEXIBLE", "category": "Work", "durationMinutes": 120, "dueInDays": 1 },
+    { "title": "Grocery shopping", "type": "FLEXIBLE", "category": "Duty", "durationMinutes": 60 },
+    { "title": "Workout", "type": "FLEXIBLE", "category": "Sport", "durationMinutes": 60 },
+    { "title": "Call friend", "type": "FLEXIBLE", "category": "Social", "durationMinutes": 45 }
+  ],
+  "expected": {
+    "scheduled": "Some flexible tasks fit around the fixed appointment.",
+    "unscheduled": "At least one flexible task reports NO_AVAILABLE_SLOT or DURATION_TOO_LONG."
+  }
+}

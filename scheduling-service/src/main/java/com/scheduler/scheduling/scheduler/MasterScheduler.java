@@ -18,11 +18,17 @@ import com.scheduler.scheduling.evaluator.CompositeEvaluator;
 import com.scheduler.scheduling.evaluator.DayMaskEvaluator;
 import com.scheduler.scheduling.evaluator.TimeWindowEvaluator;
 import com.scheduler.scheduling.models.ScheduledTask;
+import com.scheduler.scheduling.models.SchedulerRunResult;
+import com.scheduler.scheduling.models.SchedulingExplanation;
 import com.scheduler.scheduling.models.TimeSlot;
+import com.scheduler.scheduling.models.UnscheduledReasonCode;
+import com.scheduler.scheduling.models.UnscheduledTaskReport;
 import com.scheduler.scheduling.strategy.SchedulingStrategy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -40,10 +46,29 @@ public class MasterScheduler {
     private static final String QUIET_OVERRIDE_ONLY_CATEGORY = "__quiet_override_only__";
 
     private final Map<Class<?>, SchedulingStrategy<?>> strategyMap;
+    private final Clock clock;
+    private final EffectivePriorityCalculator effectivePriorityCalculator;
 
 
+    @Autowired
     public MasterScheduler(Map<Class<?>, SchedulingStrategy<?>> strategyMap) {
+        this(strategyMap, Clock.systemDefaultZone(), new EffectivePriorityCalculator());
+    }
+
+    public MasterScheduler(Map<Class<?>, SchedulingStrategy<?>> strategyMap, Clock clock) {
+        this(strategyMap, clock, new EffectivePriorityCalculator());
+    }
+
+    public MasterScheduler(
+            Map<Class<?>, SchedulingStrategy<?>> strategyMap,
+            Clock clock,
+            EffectivePriorityCalculator effectivePriorityCalculator
+    ) {
         this.strategyMap = strategyMap != null ? strategyMap : Collections.emptyMap();
+        this.clock = clock != null ? clock : Clock.systemDefaultZone();
+        this.effectivePriorityCalculator = effectivePriorityCalculator != null
+                ? effectivePriorityCalculator
+                : new EffectivePriorityCalculator();
     }
 
     /**
@@ -68,6 +93,15 @@ public class MasterScheduler {
             @Nullable DistanceMatrixProto distanceMatrix,
             @Nullable LocalDateTime flexibleStartAfter
     ) {
+        return scheduleTasksWithReliability(customer, tasks, distanceMatrix, flexibleStartAfter).getScheduledTasks();
+    }
+
+    public SchedulerRunResult scheduleTasksWithReliability(
+            CustomerDTO customer,
+            List<TaskDTO> tasks,
+            @Nullable DistanceMatrixProto distanceMatrix,
+            @Nullable LocalDateTime flexibleStartAfter
+    ) {
         if (customer == null) {
             throw new IllegalArgumentException("CustomerDTO must not be null");
         }
@@ -78,19 +112,10 @@ public class MasterScheduler {
         // ---- Filter tasks by status, with special rule:
         //      FIXED tasks are ALWAYS included (even COMPLETED),
         //      FLEXIBLE and PROJECT completed/cancelled tasks are skipped.
-        // ---- Filter tasks by status and due date
-        LocalDateTime today = LocalDateTime.now();
-
+        // ---- Filter tasks by status. Overdue flexible tasks remain schedulable so
+        //      effective priority can apply deadline pressure.
         taskList = taskList.stream()
                 .filter(t -> {
-                    // 1) Skip tasks whose dueDate is in the past
-                    if (t.getDueDate() != null && t.getDueDate().isBefore(today)) {
-                        System.out.println("Skipping overdue task id=" + t.getId()
-                                + " dueDate=" + t.getDueDate());
-                        return false;
-                    }
-
-                    // 2) Existing status rules
                     if (t.getType() == TaskType.FIXED) {
                         return true; // always schedule fixed (even completed) for visualization
                     }
@@ -124,7 +149,7 @@ public class MasterScheduler {
             System.out.println("No distance matrix provided (routing disabled for this run).");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         int horizonDays = resolveHorizonDays(customer.getMembershipLevel());
         LocalDateTime end = now.plusDays(horizonDays);
         SchedulingPreferenceDTO preferences = activePreferences(customer.getSchedulingPreference());
@@ -171,15 +196,19 @@ public class MasterScheduler {
                 fixedTasks,
                 segments,
                 preferences,
-                horizonDays
+                horizonDays,
+                now
         );
 
         @SuppressWarnings("unchecked")
         SchedulingStrategy<FlexibleTaskDTO> flexStrat =
                 (SchedulingStrategy<FlexibleTaskDTO>) strategyMap.get(FlexibleTaskDTO.class);
 
+        List<UnscheduledTaskReport> unscheduledTasks = new ArrayList<>();
         if (flexStrat != null) {
-            List<ScheduledTask> flexibleScheduled = scheduleFlexibleByZones(flexTasks, segments, flexStrat, preferences);
+            FlexibleSchedulingResult flexibleResult = scheduleFlexibleByZones(flexTasks, segments, flexStrat, preferences, now);
+            List<ScheduledTask> flexibleScheduled = flexibleResult.scheduled;
+            unscheduledTasks.addAll(flexibleResult.unscheduled);
             scheduled.addAll(flexibleScheduled);
             for (ScheduledTask st : flexibleScheduled) {
                 segments = subtractSegments(segments, reservePauseAfter(st.getAssignedSlots(), preferences));
@@ -220,26 +249,33 @@ public class MasterScheduler {
             System.out.println("No SchedulingStrategy registered for ProjectTaskDTO – skipping project tasks.");
         }
 
-        return scheduled;
+        SchedulerRunResult result = new SchedulerRunResult();
+        result.setScheduledTasks(scheduled);
+        result.setUnscheduledTasks(unscheduledTasks);
+        result.setExplanations(collectExplanations(scheduled, unscheduledTasks));
+        return result;
     }
 
-    private List<ScheduledTask> scheduleFlexibleByZones(
+    private FlexibleSchedulingResult scheduleFlexibleByZones(
             List<FlexibleTaskDTO> flexTasks,
             List<ZoneSegment> availableSegments,
             SchedulingStrategy<FlexibleTaskDTO> flexStrat,
-            SchedulingPreferenceDTO preferences
+            SchedulingPreferenceDTO preferences,
+            LocalDateTime now
     ) {
         List<ScheduledTask> scheduled = new ArrayList<>();
+        List<UnscheduledTaskReport> unscheduled = new ArrayList<>();
         List<FlexibleTaskDTO> remainingTasks = new ArrayList<>(flexTasks != null ? flexTasks : Collections.emptyList());
         List<ZoneSegment> remainingSegments = new ArrayList<>(availableSegments != null ? availableSegments : Collections.emptyList());
 
         while (!remainingTasks.isEmpty() && !remainingSegments.isEmpty()) {
-            Optional<ScheduledChoice> next = chooseNextFlexibleTask(remainingTasks, remainingSegments, flexStrat, preferences);
+            Optional<ScheduledChoice> next = chooseNextFlexibleTask(remainingTasks, remainingSegments, flexStrat, preferences, now);
             if (next.isEmpty()) {
                 break;
             }
 
             ScheduledChoice choice = next.get();
+            choice.scheduledTask.setExplanation(explanationFor(choice.task, choice.segment, preferences, now));
             scheduled.add(choice.scheduledTask);
             remainingTasks.remove(choice.task);
             remainingSegments = subtractSegments(
@@ -248,14 +284,19 @@ public class MasterScheduler {
             );
         }
 
-        return scheduled;
+        for (FlexibleTaskDTO task : remainingTasks) {
+            unscheduled.add(unscheduledReport(task, remainingSegments));
+        }
+
+        return new FlexibleSchedulingResult(scheduled, unscheduled);
     }
 
     private Optional<ScheduledChoice> chooseNextFlexibleTask(
             List<FlexibleTaskDTO> tasks,
             List<ZoneSegment> segments,
             SchedulingStrategy<FlexibleTaskDTO> flexStrat,
-            SchedulingPreferenceDTO preferences
+            SchedulingPreferenceDTO preferences,
+            LocalDateTime now
     ) {
         List<ZoneSegment> orderedSegments = segments.stream()
                 .sorted(zoneSegmentPreference())
@@ -263,8 +304,8 @@ public class MasterScheduler {
 
         for (ZoneSegment segment : orderedSegments) {
             List<FlexibleTaskDTO> candidates = tasks.stream()
-                    .filter(task -> zoneAffinity(segment, task) >= 0)
-                    .sorted(zoneCandidateComparator(segment, preferences))
+                    .filter(task -> zoneAffinity(segment, task, preferences, now) >= 0)
+                    .sorted(zoneCandidateComparator(segment, preferences, now))
                     .collect(Collectors.toList());
 
             for (FlexibleTaskDTO candidate : candidates) {
@@ -275,7 +316,7 @@ public class MasterScheduler {
                 TimeSlot slotCopy = new TimeSlot(constrainedSlot.getStart(), constrainedSlot.getEnd());
                 ScheduledTask st = flexStrat.schedule(candidate, List.of(slotCopy));
                 if (st != null && st.getAssignedSlots() != null && !st.getAssignedSlots().isEmpty()) {
-                    return Optional.of(new ScheduledChoice(candidate, st));
+                    return Optional.of(new ScheduledChoice(candidate, st, segment));
                 }
             }
         }
@@ -414,7 +455,7 @@ public class MasterScheduler {
         if (preferences == null) return null;
         if ("UNTIL_DATE".equals(preferences.getTemporaryMode())
                 && preferences.getTemporaryUntil() != null
-                && preferences.getTemporaryUntil().isBefore(LocalDate.now())) {
+                && preferences.getTemporaryUntil().isBefore(LocalDate.now(clock))) {
             return null;
         }
         return preferences;
@@ -425,7 +466,8 @@ public class MasterScheduler {
             List<FixedTaskDTO> fixedTasks,
             List<ZoneSegment> availableSegments,
             SchedulingPreferenceDTO preferences,
-            int horizonDays
+            int horizonDays,
+            LocalDateTime now
     ) {
         if (flexTasks == null || flexTasks.isEmpty()) {
             return Collections.emptyList();
@@ -436,15 +478,19 @@ public class MasterScheduler {
 
         List<FlexibleTaskDTO> ordered = new ArrayList<>(flexTasks);
         ordered.sort(Comparator
-                .comparingInt((FlexibleTaskDTO task) -> -(task.getPriority() != null ? task.getPriority() : 0))
+                .comparingInt((FlexibleTaskDTO task) -> -effectivePriority(task, preferences, now))
                 .thenComparingInt(task -> categoryRank(task, preferences))
                 .thenComparing(task -> task.getDueDate() != null ? task.getDueDate() : LocalDateTime.MAX)
                 .thenComparing(task -> task.getTitle() != null ? task.getTitle() : ""));
         return ordered;
     }
 
+    private int effectivePriority(TaskDTO task, SchedulingPreferenceDTO preferences, LocalDateTime now) {
+        return effectivePriorityCalculator.calculate(task, preferences, now);
+    }
+
     private int categoryRank(FlexibleTaskDTO task, SchedulingPreferenceDTO preferences) {
-        List<String> order = preferences.getCategoryPriorityOrder() == null || preferences.getCategoryPriorityOrder().isEmpty()
+        List<String> order = preferences == null || preferences.getCategoryPriorityOrder() == null || preferences.getCategoryPriorityOrder().isEmpty()
                 ? List.of("Work", "Duty", "Health", "Social", "Sport", "Leisure")
                 : preferences.getCategoryPriorityOrder();
         List<String> normalizedOrder = order.stream()
@@ -553,10 +599,11 @@ public class MasterScheduler {
             eval.addEvaluator(new DayMaskEvaluator(def.getDayMask()));
             eval.addEvaluator(new TimeWindowEvaluator(def.getStartTime(), def.getEndTime()));
             boolean preferredZone = "PREFERRED".equalsIgnoreCase(def.getBehaviorMode());
+            boolean generalizedZone = hasGeneralizedZoneFields(def);
             eval.addEvaluator(new CategoryEvaluator(
-                    preferredZone ? Collections.emptySet() : def.getAllowedCategories() != null ? def.getAllowedCategories() : Collections.emptySet(),
+                    preferredZone || generalizedZone ? Collections.emptySet() : def.getAllowedCategories() != null ? def.getAllowedCategories() : Collections.emptySet(),
                     def.getExcludedCategories() != null ? def.getExcludedCategories() : Collections.emptySet(),
-                    resolvedPriorityOverrideThreshold(def)
+                    generalizedZone ? null : resolvedPriorityOverrideThreshold(def)
             ));
             boolean quietOverrideOnly = isQuietOverrideOnly(def);
 
@@ -649,17 +696,17 @@ public class MasterScheduler {
                 .anyMatch(QUIET_OVERRIDE_ONLY_CATEGORY::equals);
     }
 
-    private Comparator<FlexibleTaskDTO> zoneCandidateComparator(ZoneSegment segment, SchedulingPreferenceDTO preferences) {
+    private Comparator<FlexibleTaskDTO> zoneCandidateComparator(ZoneSegment segment, SchedulingPreferenceDTO preferences, LocalDateTime now) {
         return Comparator
-                .comparingInt((FlexibleTaskDTO task) -> zoneAffinity(segment, task))
-                .thenComparingInt(task -> -(task.getPriority() != null ? task.getPriority() : 0))
+                .comparingInt((FlexibleTaskDTO task) -> zoneAffinity(segment, task, preferences, now))
+                .thenComparingInt(task -> -effectivePriority(task, preferences, now))
                 .thenComparingInt(task -> categoryRank(task, preferences))
                 .thenComparing(task -> task.getDueDate() != null ? task.getDueDate() : LocalDateTime.MAX)
                 .thenComparingInt(task -> durationFitRank(task, segment.slot))
                 .thenComparing(task -> task.getTitle() != null ? task.getTitle() : "");
     }
 
-    private int zoneAffinity(ZoneSegment segment, TaskDTO task) {
+    private int zoneAffinity(ZoneSegment segment, TaskDTO task, SchedulingPreferenceDTO preferences, LocalDateTime now) {
         if (segment == null || task == null) return -1;
         if (!segment.evaluator.isSatisfiedBy(task, segment.slot.getStart(), segment.slot.getEnd())) {
             return -1;
@@ -684,7 +731,7 @@ public class MasterScheduler {
         if (allowedCategories.contains(taskCategory)) {
             return 1;
         }
-        if (!strict || meetsPriorityOverride(def, task)) {
+        if (!strict || meetsPriorityOverride(def, task, preferences, now)) {
             return 2;
         }
         return -1;
@@ -702,9 +749,9 @@ public class MasterScheduler {
                 || def.getBehaviorMode() != null && !def.getBehaviorMode().isBlank();
     }
 
-    private boolean meetsPriorityOverride(ZoneDefinitionDTO def, TaskDTO task) {
+    private boolean meetsPriorityOverride(ZoneDefinitionDTO def, TaskDTO task, SchedulingPreferenceDTO preferences, LocalDateTime now) {
         Integer threshold = resolvedPriorityOverrideThreshold(def);
-        int priority = task.getPriority() != null ? task.getPriority() : 0;
+        int priority = effectivePriority(task, preferences, now);
         return threshold != null && priority >= threshold;
     }
 
@@ -816,6 +863,98 @@ public class MasterScheduler {
         };
     }
 
+    private UnscheduledTaskReport unscheduledReport(FlexibleTaskDTO task, List<ZoneSegment> remainingSegments) {
+        UnscheduledReasonCode reason = inferUnscheduledReason(task, remainingSegments);
+        String explanation = switch (reason) {
+            case DURATION_TOO_LONG -> "Not scheduled because no remaining slot is long enough.";
+            case BEFORE_EARLIEST_START -> "Not scheduled because remaining slots end before the task can start.";
+            case AFTER_LATEST_END -> "Not scheduled because remaining slots start after the task must finish.";
+            case OUTSIDE_ALLOWED_WINDOW -> "Not scheduled because remaining Planning Windows or default time do not allow it.";
+            case NO_AVAILABLE_SLOT -> "Not scheduled because no available flexible slot remained.";
+            case CONFLICTS_WITH_FIXED_TASK -> "Not scheduled because fixed commitments occupy the available time.";
+            case UNKNOWN -> "Not scheduled because the scheduler could not find a valid placement.";
+        };
+        return new UnscheduledTaskReport(task.getId(), task.getTitle(), task.getCategory(), reason, explanation);
+    }
+
+    private UnscheduledReasonCode inferUnscheduledReason(FlexibleTaskDTO task, List<ZoneSegment> remainingSegments) {
+        if (remainingSegments == null || remainingSegments.isEmpty()) {
+            return UnscheduledReasonCode.NO_AVAILABLE_SLOT;
+        }
+
+        int duration = task.getEstimatedDuration() != null ? task.getEstimatedDuration() : 60;
+        boolean anyLongEnough = remainingSegments.stream()
+                .anyMatch(segment -> segment.slot.durationMinutes() >= duration);
+        if (!anyLongEnough) {
+            return UnscheduledReasonCode.DURATION_TOO_LONG;
+        }
+
+        if (task.getEarliestStartDateTime() != null
+                && remainingSegments.stream().noneMatch(segment -> segment.slot.getEnd().isAfter(task.getEarliestStartDateTime()))) {
+            return UnscheduledReasonCode.BEFORE_EARLIEST_START;
+        }
+
+        if (task.getLatestEndDateTime() != null
+                && remainingSegments.stream().noneMatch(segment -> segment.slot.getStart().isBefore(task.getLatestEndDateTime()))) {
+            return UnscheduledReasonCode.AFTER_LATEST_END;
+        }
+
+        return UnscheduledReasonCode.OUTSIDE_ALLOWED_WINDOW;
+    }
+
+    private SchedulingExplanation explanationFor(
+            FlexibleTaskDTO task,
+            ZoneSegment segment,
+            SchedulingPreferenceDTO preferences,
+            LocalDateTime now
+    ) {
+        List<String> reasons = new ArrayList<>();
+        if (segment.definition != null) {
+            int affinity = zoneAffinity(segment, task, preferences, now);
+            if (affinity == 0) reasons.add("MATCHED_PRIMARY_CATEGORY");
+            else if (affinity == 1) reasons.add("MATCHED_SECONDARY_CATEGORY");
+            else if (affinity == 2) reasons.add("URGENT_OR_PREFERRED_FALLBACK");
+            reasons.add("PREFERRED".equalsIgnoreCase(segment.definition.getBehaviorMode()) ? "PREFERRED_WINDOW" : "STRICT_WINDOW");
+        } else {
+            reasons.add("DEFAULT_FLEXIBLE_PLANNING_WINDOW");
+        }
+
+        int effectivePriority = effectivePriority(task, preferences, now);
+        if (effectivePriority >= URGENT_PRIORITY_THRESHOLD) {
+            reasons.add("EFFECTIVE_PRIORITY_5");
+        }
+        if (effectivePriorityCalculator.deadlineBoost(task, preferences, now) > 0) {
+            reasons.add("DEADLINE_BOOST");
+        }
+        reasons.add("FITS_DURATION");
+
+        String explanation = "Scheduled here because it fit an available Planning Window/default slot with effective priority "
+                + effectivePriority + ".";
+        return new SchedulingExplanation(task.getId(), task.getTitle(), explanation, reasons);
+    }
+
+    private List<SchedulingExplanation> collectExplanations(
+            List<ScheduledTask> scheduled,
+            List<UnscheduledTaskReport> unscheduled
+    ) {
+        List<SchedulingExplanation> explanations = new ArrayList<>();
+        if (scheduled != null) {
+            scheduled.stream()
+                    .map(ScheduledTask::getExplanation)
+                    .filter(Objects::nonNull)
+                    .forEach(explanations::add);
+        }
+        if (unscheduled != null) {
+            unscheduled.forEach(report -> explanations.add(new SchedulingExplanation(
+                    report.getTaskId(),
+                    report.getTitle(),
+                    report.getExplanation(),
+                    List.of(report.getReasonCode().name())
+            )));
+        }
+        return explanations;
+    }
+
     private static class ZoneSegment {
         final TimeSlot slot;
         final CompositeEvaluator evaluator;
@@ -830,6 +969,12 @@ public class MasterScheduler {
         }
     }
 
-    private record ScheduledChoice(FlexibleTaskDTO task, ScheduledTask scheduledTask) {
+    private record ScheduledChoice(FlexibleTaskDTO task, ScheduledTask scheduledTask, ZoneSegment segment) {
+    }
+
+    private record FlexibleSchedulingResult(
+            List<ScheduledTask> scheduled,
+            List<UnscheduledTaskReport> unscheduled
+    ) {
     }
 }

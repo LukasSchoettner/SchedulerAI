@@ -117,6 +117,12 @@ public class CustomerServiceGrpcImpl extends CustomerServiceGrpc.CustomerService
                     .setValue(entry.getValue() != null ? entry.getValue() : 0)
                     .build());
         }
+        for (Map.Entry<String, Integer> entry : (dto.getCategoryImportance() != null ? dto.getCategoryImportance() : Collections.<String, Integer>emptyMap()).entrySet()) {
+            builder.addCategoryImportance(CategoryIntTargetProto.newBuilder()
+                    .setCategory(entry.getKey())
+                    .setValue(entry.getValue() != null ? entry.getValue() : 2)
+                    .build());
+        }
         for (Map.Entry<String, Integer> entry : (dto.getTimeBudgetTargets() != null ? dto.getTimeBudgetTargets() : Collections.<String, Integer>emptyMap()).entrySet()) {
             builder.addTimeBudgetTargets(CategoryIntTargetProto.newBuilder()
                     .setCategory(entry.getKey())

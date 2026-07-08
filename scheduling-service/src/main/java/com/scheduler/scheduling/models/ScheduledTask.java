@@ -16,6 +16,7 @@ public class ScheduledTask {
     private TaskDTO task;
     // For flexible tasks that might be splitted, we can have multiple assigned slots
     private List<TimeSlot> assignedSlots = new ArrayList<>();
+    private SchedulingExplanation explanation;
 
     public ScheduledTask(TaskDTO task, TimeSlot singleSlot) {
         this.task = task;
@@ -31,4 +32,3 @@ public class ScheduledTask {
         }
     }
 }
-

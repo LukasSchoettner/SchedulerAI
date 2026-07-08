@@ -1,0 +1,37 @@
+{
+  "name": "Normal Week",
+  "schedulingProfile": {
+    "name": "Normal Week",
+    "defaultFlexiblePlanningWindow": { "startTime": "08:00", "endTime": "20:00" },
+    "planningWindows": [
+      {
+        "title": "Work Focus",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "startTime": "09:00",
+        "endTime": "12:00",
+        "primaryCategory": "Work",
+        "secondaryCategories": ["Education"],
+        "behaviorMode": "PREFERRED",
+        "targetPlacementMode": "ALLOW_ELSEWHERE",
+        "urgentOverride": false
+      },
+      {
+        "title": "Recovery Evening",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "startTime": "19:00",
+        "endTime": "21:00",
+        "primaryCategory": "Leisure",
+        "secondaryCategories": ["Health"],
+        "behaviorMode": "STRICT",
+        "targetPlacementMode": "KEEP_INSIDE_WINDOW",
+        "urgentOverride": false
+      }
+    ]
+  },
+  "tasks": [
+    { "title": "Fixed appointment", "type": "FIXED", "category": "Health", "start": "10:00", "end": "11:00", "priority": 4 },
+    { "title": "Prepare weekly work", "type": "FLEXIBLE", "category": "Work", "durationMinutes": 60 },
+    { "title": "Laundry", "type": "FLEXIBLE", "category": "Duty", "durationMinutes": 45 },
+    { "title": "Read chapter", "type": "FLEXIBLE", "category": "Leisure", "durationMinutes": 30 }
+  ]
+}

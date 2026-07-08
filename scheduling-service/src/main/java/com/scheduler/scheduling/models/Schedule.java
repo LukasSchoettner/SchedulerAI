@@ -10,6 +10,8 @@ import java.util.List;
 public class Schedule {
 
     private List<ScheduledTask> scheduledTasks;
+    private List<UnscheduledTaskReport> unscheduledTasks;
+    private List<SchedulingExplanation> explanations;
 
     public void setScheduledTasks(List<ScheduledTask> scheduledTasks) {
         if (scheduledTasks != null) {
@@ -29,4 +31,3 @@ public class Schedule {
         setScheduledTasks(tasks);
     }
 }
-

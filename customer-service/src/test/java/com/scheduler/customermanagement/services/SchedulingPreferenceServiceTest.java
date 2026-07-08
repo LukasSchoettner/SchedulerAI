@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -27,6 +28,7 @@ class SchedulingPreferenceServiceTest {
         SchedulingPreferenceDTO dto = new SchedulingPreferenceDTO();
         dto.setPrimaryPriority("Health");
         dto.setCategoryPriorityOrder(List.of("Health", "Work", "Duty", "Social", "Sport", "Leisure"));
+        dto.setCategoryImportance(Map.of("Health", 4, "Work", 3, "Leisure", 2));
         dto.setFixedCommitmentCategories(Set.of("Work", "Health"));
         dto.setPauseMinutes(10);
 
@@ -34,10 +36,12 @@ class SchedulingPreferenceServiceTest {
 
         assertThat(saved.getPrimaryPriority()).isEqualTo("Health");
         assertThat(saved.getCategoryPriorityOrder()).containsExactly("Health", "Work", "Duty", "Social", "Sport", "Leisure");
+        assertThat(saved.getCategoryImportance()).containsEntry("Health", 4).containsEntry("Leisure", 2);
         assertThat(saved.getFixedCommitmentCategories()).containsExactlyInAnyOrder("Work", "Health");
         verify(repository).save(argThat(entity ->
                 entity.getCustomerId().equals(123L)
                         && entity.getPauseMinutes().equals(10)
+                        && entity.getCategoryImportance().get("Health").equals(4)
                         && entity.getCategoryPriorityOrder().equals(List.of("Health", "Work", "Duty", "Social", "Sport", "Leisure"))
         ));
     }
@@ -52,6 +56,7 @@ class SchedulingPreferenceServiceTest {
         SchedulingPreferenceDTO loaded = service.getPreferences(123L).orElseThrow();
 
         assertThat(loaded.getCategoryPriorityOrder()).containsExactly("Work", "Duty", "Health", "Social", "Sport", "Leisure");
+        assertThat(loaded.getCategoryImportance()).containsEntry("Work", 3).containsEntry("Leisure", 2).containsEntry("Education", 3);
     }
 
     @Test

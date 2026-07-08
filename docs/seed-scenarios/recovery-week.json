@@ -1,0 +1,36 @@
+{
+  "name": "Recovery Week",
+  "schedulingProfile": {
+    "name": "Recovery Week",
+    "defaultFlexiblePlanningWindow": { "startTime": "08:00", "endTime": "20:00" },
+    "planningWindows": [
+      {
+        "title": "Health Morning Routine",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "startTime": "08:00",
+        "endTime": "10:00",
+        "primaryCategory": "Health",
+        "secondaryCategories": ["Leisure"],
+        "behaviorMode": "STRICT",
+        "targetPlacementMode": "PREFER_INSIDE_WINDOW",
+        "urgentOverride": true
+      },
+      {
+        "title": "Recovery Evening",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "startTime": "18:00",
+        "endTime": "21:00",
+        "primaryCategory": "Leisure",
+        "secondaryCategories": ["Health"],
+        "behaviorMode": "STRICT",
+        "targetPlacementMode": "KEEP_INSIDE_WINDOW",
+        "urgentOverride": false
+      }
+    ]
+  },
+  "tasks": [
+    { "title": "Track symptoms", "type": "FLEXIBLE", "category": "Health", "durationMinutes": 15 },
+    { "title": "Short work admin", "type": "FLEXIBLE", "category": "Work", "durationMinutes": 45 },
+    { "title": "Pay urgent bill", "type": "FLEXIBLE", "category": "Duty", "durationMinutes": 30, "priority": 5 }
+  ]
+}

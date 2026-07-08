@@ -10,6 +10,7 @@ import com.scheduler.routing.grpc.DistanceMatrixProto;
 import com.scheduler.routing.grpc.RoutingServiceGrpc;
 import com.scheduler.scheduling.models.Schedule;
 import com.scheduler.scheduling.models.ScheduledTask;
+import com.scheduler.scheduling.models.SchedulerRunResult;
 import com.scheduler.scheduling.scheduler.MasterScheduler;
 import com.scheduler.taskmanagement.grpc.ListTasksRequest;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
@@ -149,7 +150,7 @@ public class TaskSchedulerService {
             // }
         }
 
-        List<ScheduledTask> scheduledTasks = masterScheduler.scheduleTasksForCustomer(
+        SchedulerRunResult schedulerResult = masterScheduler.scheduleTasksWithReliability(
                 customerDto,
                 tasks,
                 dm,
@@ -157,7 +158,9 @@ public class TaskSchedulerService {
         );
 
         Schedule schedule = new Schedule();
-        schedule.setScheduledTasks(scheduledTasks);
+        schedule.setScheduledTasks(schedulerResult.getScheduledTasks());
+        schedule.setUnscheduledTasks(schedulerResult.getUnscheduledTasks());
+        schedule.setExplanations(schedulerResult.getExplanations());
         return schedule;
     }
 }

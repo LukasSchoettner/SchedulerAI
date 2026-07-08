@@ -1,0 +1,37 @@
+{
+  "name": "Exam Phase",
+  "schedulingProfile": {
+    "name": "Exam Phase",
+    "defaultFlexiblePlanningWindow": { "startTime": "08:00", "endTime": "20:00" },
+    "planningWindows": [
+      {
+        "title": "Morning Study",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "startTime": "09:00",
+        "endTime": "12:00",
+        "primaryCategory": "Education",
+        "secondaryCategories": ["Work"],
+        "behaviorMode": "PREFERRED",
+        "targetPlacementMode": "ALLOW_ELSEWHERE",
+        "urgentOverride": false
+      },
+      {
+        "title": "Afternoon Study",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "startTime": "14:00",
+        "endTime": "17:00",
+        "primaryCategory": "Education",
+        "secondaryCategories": ["Work"],
+        "behaviorMode": "PREFERRED",
+        "targetPlacementMode": "PREFER_INSIDE_WINDOW",
+        "urgentOverride": false
+      }
+    ]
+  },
+  "tasks": [
+    { "title": "Review lecture notes", "type": "FLEXIBLE", "category": "Education", "durationMinutes": 90, "dueInDays": 1 },
+    { "title": "Practice exam questions", "type": "FLEXIBLE", "category": "Education", "durationMinutes": 120, "dueInDays": 2 },
+    { "title": "Stretching routine", "type": "FLEXIBLE", "category": "Health", "durationMinutes": 20 },
+    { "title": "Watch one episode", "type": "FLEXIBLE", "category": "Leisure", "durationMinutes": 45 }
+  ]
+}

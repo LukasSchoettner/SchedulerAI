@@ -36,6 +36,9 @@ public interface CustomerDtoMapper {
         dto.setCategoryPriorityOrder(proto.getCategoryPriorityOrderList().isEmpty()
                 ? defaultCategoryPriorityOrder()
                 : proto.getCategoryPriorityOrderList());
+        dto.setCategoryImportance(defaultCategoryImportance());
+        proto.getCategoryImportanceList().forEach(item ->
+                dto.getCategoryImportance().put(item.getCategory(), item.getValue()));
         dto.setFixedCommitmentCategories(new HashSet<>(proto.getFixedCommitmentCategoriesList()));
         dto.setWorkFlexibility(blankToNull(proto.getWorkFlexibility()));
         dto.setHealthConstraints(new HashSet<>(proto.getHealthConstraintsList()));
@@ -104,5 +107,17 @@ public interface CustomerDtoMapper {
 
     default java.util.List<String> defaultCategoryPriorityOrder() {
         return java.util.List.of("Work", "Duty", "Health", "Social", "Sport", "Leisure");
+    }
+
+    default java.util.Map<String, Integer> defaultCategoryImportance() {
+        java.util.Map<String, Integer> defaults = new HashMap<>();
+        defaults.put("Work", 3);
+        defaults.put("Duty", 3);
+        defaults.put("Health", 3);
+        defaults.put("Social", 2);
+        defaults.put("Sport", 2);
+        defaults.put("Leisure", 2);
+        defaults.put("Education", 3);
+        return defaults;
     }
 }

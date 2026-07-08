@@ -30,6 +30,12 @@ public class SchedulingPreference {
     private List<String> categoryPriorityOrder = new ArrayList<>();
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "preference_category_importance", joinColumns = @JoinColumn(name = "preference_id"))
+    @MapKeyColumn(name = "category")
+    @Column(name = "importance")
+    private Map<String, Integer> categoryImportance = new HashMap<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "preference_fixed_commitments", joinColumns = @JoinColumn(name = "preference_id"))
     @Column(name = "category")
     private Set<String> fixedCommitmentCategories = new HashSet<>();

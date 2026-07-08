@@ -23,6 +23,7 @@ public final class SchedulingPreferenceMapper {
         dto.setId(entity.getId());
         dto.setPrimaryPriority(entity.getPrimaryPriority());
         dto.setCategoryPriorityOrder(copyListOrDefault(entity.getCategoryPriorityOrder()));
+        dto.setCategoryImportance(copyMapOrDefaultImportance(entity.getCategoryImportance()));
         dto.setFixedCommitmentCategories(copySet(entity.getFixedCommitmentCategories()));
         dto.setWorkFlexibility(entity.getWorkFlexibility());
         dto.setHealthConstraints(copySet(entity.getHealthConstraints()));
@@ -58,6 +59,7 @@ public final class SchedulingPreferenceMapper {
         entity.setCustomerId(customerId);
         entity.setPrimaryPriority(dto.getPrimaryPriority());
         entity.setCategoryPriorityOrder(copyListOrDefault(dto.getCategoryPriorityOrder()));
+        entity.setCategoryImportance(copyMapOrDefaultImportance(dto.getCategoryImportance()));
         entity.setFixedCommitmentCategories(copySet(dto.getFixedCommitmentCategories()));
         entity.setWorkFlexibility(dto.getWorkFlexibility());
         entity.setHealthConstraints(copySet(dto.getHealthConstraints()));
@@ -111,5 +113,24 @@ public final class SchedulingPreferenceMapper {
 
     private static <T> Map<String, T> copyMap(Map<String, T> value) {
         return value == null ? new HashMap<>() : new HashMap<>(value);
+    }
+
+    private static Map<String, Integer> copyMapOrDefaultImportance(Map<String, Integer> value) {
+        Map<String, Integer> defaults = new LinkedHashMap<>();
+        defaults.put("Work", 3);
+        defaults.put("Duty", 3);
+        defaults.put("Health", 3);
+        defaults.put("Social", 2);
+        defaults.put("Sport", 2);
+        defaults.put("Leisure", 2);
+        defaults.put("Education", 3);
+        if (value != null) {
+            value.forEach((category, importance) -> {
+                if (category != null && importance != null) {
+                    defaults.put(category, Math.max(1, Math.min(4, importance)));
+                }
+            });
+        }
+        return defaults;
     }
 }

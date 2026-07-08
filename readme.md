@@ -27,6 +27,7 @@ Use the Register form to create a fresh account, then log in and try the main wo
 For evaluator-facing instructions, see [HAND_IN.md](HAND_IN.md).
 For release notes and known limitations, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
 For troubleshooting local startup, see [LOCAL_STARTUP.md](LOCAL_STARTUP.md).
+For scheduler reliability concepts, tests, and seed scenarios, see [docs/scheduler-reliability.md](docs/scheduler-reliability.md).
 
 ## Verification
 
@@ -54,6 +55,7 @@ The current build supports:
 - Scheduling Profiles that group one or more Planning Windows. A Scheduling Profile can be activated, edited, or deleted from Settings.
 - Planning Windows with a main focus category, also-allowed categories, strict/preferred behavior, urgent override, and target placement mode.
 - Schedule generation with fixed tasks placed first, flexible tasks guided by Planning Windows, category priority, task priority, deadlines, and pauses.
+- Scheduler reliability support with deterministic test time, category importance, effective priority, urgent override checks based on effective priority, lightweight unscheduled-task reports, and backend/test-visible scheduling explanations.
 - Home daily dashboard with morning briefing, next task, today-at-a-glance preview, and quick links.
 - Schedule correction workspace with the detailed Today timeline plus Week calendar view, category filters, and automatic visible time range.
 - Settings area for profile, Scheduler Preferences, Scheduling Profiles, saved locations, and notification placeholder settings.
