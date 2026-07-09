@@ -33,6 +33,8 @@ Phase 3 adds a database-backed in-app notification MVP; see [docs/notifications-
 
 Phase 4a adds routing feasibility checks and travel-time warnings; see [docs/routing-feasibility-mvp.md](docs/routing-feasibility-mvp.md).
 
+Phase 5a adds mobile daily-flow and Quick Add Task behavior; see [docs/mobile-daily-flow.md](docs/mobile-daily-flow.md).
+
 ## Verification
 
 ```powershell

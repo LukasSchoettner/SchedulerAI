@@ -30,3 +30,17 @@
   display: flex;
   justify-content: center;
 }
+
+@media (max-width: 760px) {
+  .layout {
+    padding-bottom: calc(4.8rem + env(safe-area-inset-bottom));
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .main {
+    padding: 0.75rem;
+  }
+}

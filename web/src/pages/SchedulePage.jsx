@@ -10,6 +10,7 @@ import useDayPlan from '../hooks/useDayPlan';
 import MorningBriefingPanel from '../components/day-plan/MorningBriefingPanel';
 import PlanStatusChip from '../components/day-plan/PlanStatusChip';
 import TodayPlanTimeline from '../components/day-plan/TodayPlanTimeline';
+import { useDayPlanActions } from '../components/layout/DayPlanActionsContext';
 import {
     categorySoftStyle,
     dayPlanItemToEvent,
@@ -26,11 +27,13 @@ const CALENDAR_WEEK_VIEW = 'timeGridWeek';
 
 export default function SchedulePage() {
     const dayPlanState = useDayPlan();
+    const { setActions, clearActions } = useDayPlanActions();
     const [weeklyEvents, setWeeklyEvents] = useState([]);
     const [activeCategories, setActiveCategories] = useState(() => new Set(BUILT_IN_CATEGORIES));
     const [pageView, setPageView] = useState(TODAY_VIEW);
     const [visibleDateRange, setVisibleDateRange] = useState(null);
     const calendarRef = useRef(null);
+    const regenerateTodayRef = useRef(null);
     const navigate = useNavigate();
 
     const {
@@ -65,6 +68,13 @@ export default function SchedulePage() {
     }, []);
 
     useEffect(() => {
+        setActions({
+            regenerateToday: () => regenerateTodayRef.current?.(),
+        });
+        return clearActions;
+    }, [clearActions, setActions]);
+
+    useEffect(() => {
         setActiveCategories(new Set([
             ...BUILT_IN_CATEGORIES,
             ...weeklyEvents.map(event => event.extendedProps.category).filter(Boolean),
@@ -94,6 +104,8 @@ export default function SchedulePage() {
         await regenerateDayPlan();
         await refreshWeeklySchedule();
     };
+
+    regenerateTodayRef.current = regenerateAndRefresh;
 
     const completeAndRefresh = async (item) => {
         await completeItem(item);

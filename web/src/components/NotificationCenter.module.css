@@ -3,6 +3,11 @@
   position: relative;
 }
 
+.mobileCenter {
+  width: 100%;
+  margin-left: 0;
+}
+
 .trigger {
   align-items: center;
   background: #eef6ff;
@@ -13,6 +18,23 @@
   font-weight: 800;
   gap: 0.45rem;
   padding: 0.45rem 0.8rem;
+}
+
+.mobileTrigger {
+  justify-content: center;
+  width: 100%;
+  min-height: 2.55rem;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.2rem;
+}
+
+.mobileTrigger:hover {
+  border-color: #bfdbfe;
+  background: #eef6ff;
 }
 
 .badge {
@@ -102,9 +124,11 @@
   }
 
   .panel {
-    left: 0;
+    left: auto;
     min-width: 0;
-    right: auto;
+    right: 0;
+    bottom: calc(100% + 0.65rem);
+    top: auto;
     width: min(92vw, 360px);
   }
 }

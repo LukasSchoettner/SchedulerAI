@@ -1,8 +1,23 @@
+import { useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import NotificationCenter from './NotificationCenter';
+import { DayPlanActionsProvider, useDayPlanActions } from './layout/DayPlanActionsContext';
+import MobileBottomNav from './layout/MobileBottomNav';
+import QuickAddTaskSheet from './tasks/QuickAddTaskSheet';
 import styles from './Layout.module.css';
 
 export default function Layout() {
+  return (
+    <DayPlanActionsProvider>
+      <LayoutContent />
+    </DayPlanActionsProvider>
+  );
+}
+
+function LayoutContent() {
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const { actions } = useDayPlanActions();
+
   return (
     <div className={styles.layout}>
       <nav className={styles.nav}>
@@ -15,6 +30,12 @@ export default function Layout() {
       <main className={styles.main}>
         <Outlet />
       </main>
+      <MobileBottomNav onQuickAdd={() => setQuickAddOpen(true)} />
+      <QuickAddTaskSheet
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        regenerateToday={actions.regenerateToday}
+      />
     </div>
   );
 }

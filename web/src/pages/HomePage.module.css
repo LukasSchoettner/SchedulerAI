@@ -317,6 +317,11 @@
   justify-content: flex-end;
 }
 
+.modalActions button,
+.followUpForm input {
+  min-height: 2.5rem;
+}
+
 @media (max-width: 900px) {
   .container {
     padding: 1rem;
@@ -332,5 +337,28 @@
 
   .previewColumns {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .modalBackdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .followUpModal {
+    width: 100%;
+    border-radius: 14px 14px 0 0;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .followUpForm label,
+  .modalActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .modalActions button {
+    width: 100%;
   }
 }

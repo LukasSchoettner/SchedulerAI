@@ -12,7 +12,7 @@ const TARGETS = {
     REMINDER_DATE_REACHED: '/schedule',
 };
 
-export default function NotificationCenter() {
+export default function NotificationCenter({ variant = 'default' }) {
     const [open, setOpen] = useState(false);
     const navigate = useNavigate();
     const {
@@ -32,14 +32,14 @@ export default function NotificationCenter() {
     };
 
     return (
-        <div className={styles.center}>
+        <div className={`${styles.center} ${variant === 'mobileNav' ? styles.mobileCenter : ''}`}>
             <button
                 type="button"
-                className={styles.trigger}
+                className={`${styles.trigger} ${variant === 'mobileNav' ? styles.mobileTrigger : ''}`}
                 onClick={() => setOpen(prev => !prev)}
                 aria-label="Notifications"
             >
-                Notifications
+                {variant === 'mobileNav' ? 'Notifications' : 'Notifications'}
                 {unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}
             </button>
             {open && (

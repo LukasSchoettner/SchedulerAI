@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import useDayPlan, { toLocalDateTimeParam } from '../hooks/useDayPlan';
 import MorningBriefingPanel from '../components/day-plan/MorningBriefingPanel';
 import NextTaskCard from '../components/day-plan/NextTaskCard';
 import TodayPlanPreview from '../components/day-plan/TodayPlanPreview';
+import { useDayPlanActions } from '../components/layout/DayPlanActionsContext';
 import { formatDayLabel, formatTimeOnly, formatMinutes, localDateKey } from '../components/day-plan/dayPlanUtils';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
     const navigate = useNavigate();
     const dayPlanState = useDayPlan(undefined, { autoGenerate: false });
+    const { setActions, clearActions } = useDayPlanActions();
+    const regenerateTodayRef = useRef(null);
     const [profile, setProfile] = useState(null);
     const [taskCount, setTaskCount] = useState(null);
     const [tasks, setTasks] = useState([]);
@@ -45,6 +48,15 @@ export default function HomePage() {
         setFollowUpItem(current => current || nextFollowUpItem(dayPlanState.activeItems));
         return () => window.clearInterval(interval);
     }, [dayPlanState.activeItems]);
+
+    regenerateTodayRef.current = () => dayPlanState.regenerateDayPlan(new Date());
+
+    useEffect(() => {
+        setActions({
+            regenerateToday: () => regenerateTodayRef.current?.(),
+        });
+        return clearActions;
+    }, [clearActions, setActions]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -122,8 +134,13 @@ export default function HomePage() {
 
                 <aside className={styles.sideColumn}>
                     <NextTaskCard
+                        dayPlan={dayPlanState.dayPlan}
+                        loading={dayPlanState.loading}
+                        transitions={dayPlanState.dayPlan?.transitions}
                         items={dayPlanState.activeItems}
                         onComplete={dayPlanState.completeItem}
+                        onConfirm={dayPlanState.confirmDayPlan}
+                        onRegenerate={() => dayPlanState.regenerateDayPlan(new Date())}
                     />
                     <QuickLinks taskCount={taskCount} locationCount={locationCount} />
                 </aside>
@@ -276,7 +293,7 @@ function FlexibleFollowUpModal({
         <div className={styles.modalBackdrop} role="presentation">
             <section className={styles.followUpModal} role="dialog" aria-modal="true" aria-labelledby="follow-up-title">
                 <span className={styles.eyebrow}>Task follow-up</span>
-                <h3 id="follow-up-title">Did you tackle this task?</h3>
+                <h3 id="follow-up-title">Did you finish this?</h3>
                 <div className={styles.followUpTask}>
                     <strong>{item.titleSnapshot}</strong>
                     <span>Scheduled: {formatTimeOnly(item.startDateTime)}-{formatTimeOnly(item.endDateTime)}</span>
@@ -302,10 +319,10 @@ function FlexibleFollowUpModal({
                     </div>
                 ) : (
                     <div className={styles.modalActions}>
-                        <button type="button" onClick={onComplete}>Yes, finished</button>
-                        <button type="button" onClick={() => setMode('unfinished')}>Yes, but not finished</button>
+                        <button type="button" onClick={onComplete}>Yes, done</button>
+                        <button type="button" onClick={() => setMode('unfinished')}>Partly done</button>
                         <button type="button" onClick={() => onReschedule('NOT_TACKLED')}>No, reschedule</button>
-                        <button type="button" onClick={onClose}>Not now</button>
+                        <button type="button" onClick={onClose}>Dismiss</button>
                     </div>
                 )}
             </section>
