@@ -67,6 +67,32 @@ describe('TodayPlanTimeline travel notices', () => {
         expect(screen.getAllByText('Work').length).toBeGreaterThan(0);
         expect(screen.queryByText(/travel/i)).not.toBeInTheDocument();
     });
+
+    test('renders transition when backend skips a non-relevant visible item', () => {
+        render(
+            <TodayPlanTimeline
+                items={[
+                    items()[0],
+                    {
+                        id: 99,
+                        titleSnapshot: 'Free time',
+                        categorySnapshot: 'Leisure',
+                        taskTypeSnapshot: 'FIXED',
+                        status: 'FREE_TIME',
+                        startDateTime: '2026-07-09T10:00:00',
+                        endDateTime: '2026-07-09T10:20:00',
+                    },
+                    items()[1],
+                ]}
+                transitions={[transition('Travel may be too tight: 10 min available, about 30 min needed.', 'INSUFFICIENT_TRAVEL_TIME', 10, 30)]}
+                onComplete={vi.fn()}
+                onOpenDetails={vi.fn()}
+            />
+        );
+
+        expect(screen.getByText('Free time')).toBeInTheDocument();
+        expect(screen.getByText(/Travel may be too tight/i)).toBeInTheDocument();
+    });
 });
 
 function items() {

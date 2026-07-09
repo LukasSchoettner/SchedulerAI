@@ -7,5 +7,6 @@ public enum UnscheduledReasonCode {
     AFTER_LATEST_END,
     BEFORE_EARLIEST_START,
     CONFLICTS_WITH_FIXED_TASK,
+    TRAVEL_TIME_CONFLICT,
     UNKNOWN
 }

@@ -1,6 +1,6 @@
 # Routing Feasibility MVP
 
-Phase 4a adds warnings-only travel feasibility checks to backend day-plan responses. It helps users see impossible or tight transitions between scheduled items without changing schedule generation.
+Phase 4a adds warnings-only travel feasibility checks to backend day-plan responses. Phase 4b adds a narrow flexible-task candidate filter that avoids known impossible travel placements without changing fixed tasks.
 
 ## What It Does
 
@@ -8,15 +8,16 @@ Phase 4a adds warnings-only travel feasibility checks to backend day-plan respon
 - Computes transitions between consecutive relevant day-plan items when `DayPlanResponse` is built.
 - Adds non-persisted transition data to day-plan responses.
 - Displays compact travel notices in the Schedule page Today timeline.
+- Rejects flexible-task candidate placements when surrounding known locations cannot be reached in time.
 
 ## What It Does Not Do Yet
 
-- No scheduler placement changes.
-- No moving or unscheduling tasks because of travel time.
+- No fixed-task placement changes.
+- No moving fixed commitments because of travel time.
 - No Google Maps, live traffic, route optimization, or routing-service integration.
 - No travel notifications, Kafka, push, mobile routing, or turn-by-turn navigation.
 
-Active travel-aware scheduling belongs to Phase 4b.
+Full route optimization belongs to a later phase.
 
 ## Location Resolution
 
@@ -65,7 +66,14 @@ The scheduling service currently uses Hibernate `ddl-auto: update` in local conf
 - `UNKNOWN_TRAVEL_TIME` is reserved for future estimators; the MVP usually reports missing location, same location, or default-estimated travel.
 - Existing `tightSpotSummary` remains time-gap based and separate from travel feasibility.
 - The frontend shows warnings only; it does not offer routing actions.
+- Phase 4b uses the existing greedy scheduling approach. Travel filtering can reject known impossible flexible placements, but it does not perform global route optimization. An earlier accepted flexible task may still influence what later tasks can fit. Full route optimization is out of scope.
 
-## Phase 4b Boundary
+## Phase 4b: Active Flexible-Task Avoidance
 
-Phase 4b can use this transition data as a foundation for active travel-aware scheduling, such as avoiding impossible transitions, moving flexible tasks, integrating a routing provider, or clustering errands. None of that belongs to Phase 4a.
+Phase 4b uses the same simple travel estimate from Phase 4a to avoid placing flexible tasks into candidate slots that are known to be travel-impossible.
+
+Fixed tasks remain immovable anchors. Missing-location cases remain warning-only. The scheduler only rejects a flexible candidate slot when both locations are known and the available gap is shorter than the estimated travel time.
+
+If every otherwise valid flexible placement is rejected for known travel infeasibility, the task is reported with `TRAVEL_TIME_CONFLICT`. Fixed-fixed conflicts remain visible as Phase 4a warnings and are not repaired by the scheduler.
+
+This is not route optimization. It does not use Google Maps, routing-service, live traffic, multi-stop planning, or route clustering.

@@ -7,13 +7,22 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 public class RoutingFeasibilityService {
 
-    static final int DEFAULT_TRAVEL_MINUTES = 30;
     static final int TIGHT_TRAVEL_THRESHOLD_MINUTES = 5;
+    private final TravelAwarePlacementService travelAwarePlacementService;
+
+    public RoutingFeasibilityService() {
+        this(new TravelAwarePlacementService());
+    }
+
+    public RoutingFeasibilityService(TravelAwarePlacementService travelAwarePlacementService) {
+        this.travelAwarePlacementService = travelAwarePlacementService != null
+                ? travelAwarePlacementService
+                : new TravelAwarePlacementService();
+    }
 
     public List<ScheduleTransitionResponse> transitionsFor(List<DayPlanItem> items) {
         if (items == null) {
@@ -52,19 +61,21 @@ public class RoutingFeasibilityService {
                     "Schedule overlap: the next item starts before the previous item ends.");
         }
 
-        if (!hasLocation(from) || !hasLocation(to)) {
+        LocationSnapshot fromLocation = location(from);
+        LocationSnapshot toLocation = location(to);
+        if (!travelAwarePlacementService.hasLocation(fromLocation) || !travelAwarePlacementService.hasLocation(toLocation)) {
             return response(from, to, availableMinutes, null, null,
                     TravelWarningCode.MISSING_LOCATION,
                     "Location missing: travel feasibility could not be checked.");
         }
 
-        if (sameLocation(from, to)) {
+        if (travelAwarePlacementService.sameLocation(fromLocation, toLocation)) {
             return response(from, to, availableMinutes, 0, true,
                     TravelWarningCode.SAME_LOCATION,
                     "Same location: no travel time needed.");
         }
 
-        int defaultTravel = DEFAULT_TRAVEL_MINUTES;
+        int defaultTravel = TravelAwarePlacementService.DEFAULT_TRAVEL_MINUTES;
         if (availableMinutes < defaultTravel) {
             return response(from, to, availableMinutes, defaultTravel, false,
                     TravelWarningCode.INSUFFICIENT_TRAVEL_TIME,
@@ -83,27 +94,18 @@ public class RoutingFeasibilityService {
     }
 
     private Integer estimateTravelMinutes(DayPlanItem from, DayPlanItem to) {
-        if (!hasLocation(from) || !hasLocation(to)) return null;
-        if (sameLocation(from, to)) return 0;
-        return DEFAULT_TRAVEL_MINUTES;
+        TravelTimeEstimate estimate = travelAwarePlacementService.estimate(location(from), location(to));
+        return estimate.known() ? estimate.minutes() : null;
     }
 
     private boolean hasLocation(DayPlanItem item) {
-        return item.getAddressIdSnapshot() != null || !normalize(item.getAddressTextSnapshot()).isBlank();
+        return travelAwarePlacementService.hasLocation(location(item));
     }
 
-    private boolean sameLocation(DayPlanItem from, DayPlanItem to) {
-        if (from.getAddressIdSnapshot() != null && from.getAddressIdSnapshot().equals(to.getAddressIdSnapshot())) {
-            return true;
-        }
-        String fromAddress = normalize(from.getAddressTextSnapshot());
-        String toAddress = normalize(to.getAddressTextSnapshot());
-        return !fromAddress.isBlank() && fromAddress.equals(toAddress);
-    }
-
-    private String normalize(String value) {
-        if (value == null) return "";
-        return value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+    private LocationSnapshot location(DayPlanItem item) {
+        return item == null
+                ? new LocationSnapshot(null, null)
+                : new LocationSnapshot(item.getAddressIdSnapshot(), item.getAddressTextSnapshot());
     }
 
     private ScheduleTransitionResponse response(

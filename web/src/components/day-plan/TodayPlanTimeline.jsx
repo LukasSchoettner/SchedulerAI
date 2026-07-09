@@ -18,12 +18,12 @@ export default function TodayPlanTimeline({ items = [], transitions = [], empty,
 
     return (
         <ol className={styles.timeline}>
-            {items.map((item, index) => {
+            {items.map((item) => {
                 const category = canonicalizeCategory(item.categorySnapshot);
                 const color = categorySoftStyle(category);
                 const isCompleted = item.status === 'COMPLETED';
                 const isFreeTime = item.status === 'FREE_TIME' || item.titleSnapshot === 'Free time';
-                const transition = findTransition(transitions, item, items[index + 1]);
+                const itemTransitions = transitionsFrom(transitions, item);
                 return (
                     <Fragment key={item.id || `${item.startDateTime}-${item.titleSnapshot}`}>
                         <li
@@ -52,7 +52,12 @@ export default function TodayPlanTimeline({ items = [], transitions = [], empty,
                                 onSkip={canSkipItem(item) ? onSkip : null}
                             />
                         </li>
-                        {transition && <TravelTransitionNotice transition={transition} />}
+                        {itemTransitions.map(transition => (
+                            <TravelTransitionNotice
+                                key={`${transition.fromDayPlanItemId}-${transition.toDayPlanItemId}`}
+                                transition={transition}
+                            />
+                        ))}
                     </Fragment>
                 );
             })}
@@ -60,11 +65,9 @@ export default function TodayPlanTimeline({ items = [], transitions = [], empty,
     );
 }
 
-function findTransition(transitions, from, to) {
-    if (!to || !Array.isArray(transitions)) return null;
-    return transitions.find(transition => (
-        transition.fromDayPlanItemId === from.id && transition.toDayPlanItemId === to.id
-    )) || null;
+function transitionsFrom(transitions, item) {
+    if (!item?.id || !Array.isArray(transitions)) return [];
+    return transitions.filter(transition => transition.fromDayPlanItemId === item.id);
 }
 
 function TaskActions({ item, onComplete, onOpenDetails, onKeepFree, onSkip }) {

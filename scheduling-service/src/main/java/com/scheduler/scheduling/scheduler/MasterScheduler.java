@@ -23,6 +23,7 @@ import com.scheduler.scheduling.models.SchedulingExplanation;
 import com.scheduler.scheduling.models.TimeSlot;
 import com.scheduler.scheduling.models.UnscheduledReasonCode;
 import com.scheduler.scheduling.models.UnscheduledTaskReport;
+import com.scheduler.scheduling.routing.TravelAwarePlacementService;
 import com.scheduler.scheduling.strategy.SchedulingStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
@@ -48,18 +49,20 @@ public class MasterScheduler {
     private final Map<Class<?>, SchedulingStrategy<?>> strategyMap;
     private final Clock clock;
     private final EffectivePriorityCalculator effectivePriorityCalculator;
+    private final TravelAwarePlacementService travelAwarePlacementService;
 
 
     @Autowired
     public MasterScheduler(
             Map<Class<?>, SchedulingStrategy<?>> strategyMap,
-            EffectivePriorityCalculator effectivePriorityCalculator
+            EffectivePriorityCalculator effectivePriorityCalculator,
+            TravelAwarePlacementService travelAwarePlacementService
     ) {
-        this(strategyMap, Clock.systemDefaultZone(), effectivePriorityCalculator);
+        this(strategyMap, Clock.systemDefaultZone(), effectivePriorityCalculator, travelAwarePlacementService);
     }
 
     public MasterScheduler(Map<Class<?>, SchedulingStrategy<?>> strategyMap, Clock clock) {
-        this(strategyMap, clock, new EffectivePriorityCalculator());
+        this(strategyMap, clock, new EffectivePriorityCalculator(), new TravelAwarePlacementService());
     }
 
     public MasterScheduler(
@@ -67,11 +70,23 @@ public class MasterScheduler {
             Clock clock,
             EffectivePriorityCalculator effectivePriorityCalculator
     ) {
+        this(strategyMap, clock, effectivePriorityCalculator, new TravelAwarePlacementService());
+    }
+
+    public MasterScheduler(
+            Map<Class<?>, SchedulingStrategy<?>> strategyMap,
+            Clock clock,
+            EffectivePriorityCalculator effectivePriorityCalculator,
+            TravelAwarePlacementService travelAwarePlacementService
+    ) {
         this.strategyMap = strategyMap != null ? strategyMap : Collections.emptyMap();
         this.clock = clock != null ? clock : Clock.systemDefaultZone();
         this.effectivePriorityCalculator = effectivePriorityCalculator != null
                 ? effectivePriorityCalculator
                 : new EffectivePriorityCalculator();
+        this.travelAwarePlacementService = travelAwarePlacementService != null
+                ? travelAwarePlacementService
+                : new TravelAwarePlacementService();
     }
 
     /**
@@ -209,7 +224,7 @@ public class MasterScheduler {
 
         List<UnscheduledTaskReport> unscheduledTasks = new ArrayList<>();
         if (flexStrat != null) {
-            FlexibleSchedulingResult flexibleResult = scheduleFlexibleByZones(flexTasks, segments, flexStrat, preferences, now);
+            FlexibleSchedulingResult flexibleResult = scheduleFlexibleByZones(flexTasks, segments, flexStrat, preferences, now, scheduled);
             List<ScheduledTask> flexibleScheduled = flexibleResult.scheduled;
             unscheduledTasks.addAll(flexibleResult.unscheduled);
             scheduled.addAll(flexibleScheduled);
@@ -264,15 +279,26 @@ public class MasterScheduler {
             List<ZoneSegment> availableSegments,
             SchedulingStrategy<FlexibleTaskDTO> flexStrat,
             SchedulingPreferenceDTO preferences,
-            LocalDateTime now
+            LocalDateTime now,
+            List<ScheduledTask> alreadyScheduled
     ) {
         List<ScheduledTask> scheduled = new ArrayList<>();
         List<UnscheduledTaskReport> unscheduled = new ArrayList<>();
         List<FlexibleTaskDTO> remainingTasks = new ArrayList<>(flexTasks != null ? flexTasks : Collections.emptyList());
         List<ZoneSegment> remainingSegments = new ArrayList<>(availableSegments != null ? availableSegments : Collections.emptyList());
+        List<ScheduledTask> travelAnchors = new ArrayList<>(alreadyScheduled != null ? alreadyScheduled : Collections.emptyList());
+        Set<FlexibleTaskDTO> travelRejectedTasks = Collections.newSetFromMap(new IdentityHashMap<>());
 
         while (!remainingTasks.isEmpty() && !remainingSegments.isEmpty()) {
-            Optional<ScheduledChoice> next = chooseNextFlexibleTask(remainingTasks, remainingSegments, flexStrat, preferences, now);
+            Optional<ScheduledChoice> next = chooseNextFlexibleTask(
+                    remainingTasks,
+                    remainingSegments,
+                    flexStrat,
+                    preferences,
+                    now,
+                    travelAnchors,
+                    travelRejectedTasks
+            );
             if (next.isEmpty()) {
                 break;
             }
@@ -280,6 +306,7 @@ public class MasterScheduler {
             ScheduledChoice choice = next.get();
             choice.scheduledTask.setExplanation(explanationFor(choice.task, choice.segment, preferences, now));
             scheduled.add(choice.scheduledTask);
+            travelAnchors.add(choice.scheduledTask);
             remainingTasks.remove(choice.task);
             remainingSegments = subtractSegments(
                     remainingSegments,
@@ -288,7 +315,7 @@ public class MasterScheduler {
         }
 
         for (FlexibleTaskDTO task : remainingTasks) {
-            unscheduled.add(unscheduledReport(task, remainingSegments));
+            unscheduled.add(unscheduledReport(task, remainingSegments, travelRejectedTasks.contains(task)));
         }
 
         return new FlexibleSchedulingResult(scheduled, unscheduled);
@@ -299,7 +326,9 @@ public class MasterScheduler {
             List<ZoneSegment> segments,
             SchedulingStrategy<FlexibleTaskDTO> flexStrat,
             SchedulingPreferenceDTO preferences,
-            LocalDateTime now
+            LocalDateTime now,
+            List<ScheduledTask> travelAnchors,
+            Set<FlexibleTaskDTO> travelRejectedTasks
     ) {
         List<ZoneSegment> orderedSegments = segments.stream()
                 .sorted(zoneSegmentPreference())
@@ -319,6 +348,10 @@ public class MasterScheduler {
                 TimeSlot slotCopy = new TimeSlot(constrainedSlot.getStart(), constrainedSlot.getEnd());
                 ScheduledTask st = flexStrat.schedule(candidate, List.of(slotCopy));
                 if (st != null && st.getAssignedSlots() != null && !st.getAssignedSlots().isEmpty()) {
+                    if (!travelAwarePlacementService.isPlacementFeasible(candidate, st.getAssignedSlots(), travelAnchors)) {
+                        travelRejectedTasks.add(candidate);
+                        continue;
+                    }
                     return Optional.of(new ScheduledChoice(candidate, st, segment));
                 }
             }
@@ -867,7 +900,17 @@ public class MasterScheduler {
     }
 
     private UnscheduledTaskReport unscheduledReport(FlexibleTaskDTO task, List<ZoneSegment> remainingSegments) {
-        UnscheduledReasonCode reason = inferUnscheduledReason(task, remainingSegments);
+        return unscheduledReport(task, remainingSegments, false);
+    }
+
+    private UnscheduledTaskReport unscheduledReport(
+            FlexibleTaskDTO task,
+            List<ZoneSegment> remainingSegments,
+            boolean hadTravelRejectedCandidate
+    ) {
+        UnscheduledReasonCode reason = hadTravelRejectedCandidate
+                ? UnscheduledReasonCode.TRAVEL_TIME_CONFLICT
+                : inferUnscheduledReason(task, remainingSegments);
         String explanation = switch (reason) {
             case DURATION_TOO_LONG -> "Not scheduled because no remaining slot is long enough.";
             case BEFORE_EARLIEST_START -> "Not scheduled because remaining slots end before the task can start.";
@@ -875,6 +918,7 @@ public class MasterScheduler {
             case OUTSIDE_ALLOWED_WINDOW -> "Not scheduled because remaining Planning Windows or default time do not allow it.";
             case NO_AVAILABLE_SLOT -> "Not scheduled because no available flexible slot remained.";
             case CONFLICTS_WITH_FIXED_TASK -> "Not scheduled because fixed commitments occupy the available time.";
+            case TRAVEL_TIME_CONFLICT -> "No travel-feasible slot was available between surrounding scheduled items.";
             case UNKNOWN -> "Not scheduled because the scheduler could not find a valid placement.";
         };
         return new UnscheduledTaskReport(task.getId(), task.getTitle(), task.getCategory(), reason, explanation);

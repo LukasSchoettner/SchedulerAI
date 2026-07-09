@@ -234,6 +234,111 @@ class MasterSchedulerReliabilityTest {
                 .isEqualTo(LocalDate.of(2026, 7, 7));
     }
 
+    @Test
+    void flexibleTaskRejectsKnownImpossibleTravelCandidateAndUsesLaterFeasibleWindow() {
+        ZoneDefinitionDTO early = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(10, 0), LocalTime.of(10, 40));
+        ZoneDefinitionDTO later = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(12, 30), LocalTime.of(13, 30));
+        CustomerDTO customer = customerWithZones(List.of(early, later));
+        customer.setSchedulingPreference(preferences(Map.of("Sport", 3), 0));
+        FixedTaskDTO work = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        work.setAddressId(1L);
+        FlexibleTaskDTO gym = flexibleTask("Sport", null, 30);
+        gym.setAddressId(2L);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(work, gym), null, null);
+
+        ScheduledTask flexible = result.getScheduledTasks().stream()
+                .filter(item -> item.getTask().getType() == TaskType.FLEXIBLE)
+                .findFirst()
+                .orElseThrow();
+        assertThat(flexible.getAssignedSlots().getFirst().getStart()).isEqualTo(TODAY.atTime(12, 30));
+    }
+
+    @Test
+    void flexibleTaskReportsTravelConflictOnlyForOtherwiseValidRejectedCandidate() {
+        ZoneDefinitionDTO early = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(10, 0), LocalTime.of(10, 40));
+        CustomerDTO customer = customerWithZones(List.of(early));
+        customer.setSchedulingPreference(preferences(Map.of("Sport", 3), 0));
+        FixedTaskDTO work = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        work.setAddressId(1L);
+        FlexibleTaskDTO gym = flexibleTask("Sport", null, 30);
+        gym.setAddressId(2L);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(work, gym), null, null);
+
+        assertThat(result.getScheduledTasks()).filteredOn(item -> item.getTask().getType() == TaskType.FLEXIBLE).isEmpty();
+        assertThat(result.getUnscheduledTasks()).extracting("reasonCode")
+                .contains(UnscheduledReasonCode.TRAVEL_TIME_CONFLICT);
+    }
+
+    @Test
+    void missingLocationFlexibleTaskDoesNotProduceTravelConflict() {
+        ZoneDefinitionDTO early = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(10, 0), LocalTime.of(10, 40));
+        CustomerDTO customer = customerWithZones(List.of(early));
+        customer.setSchedulingPreference(preferences(Map.of("Sport", 3), 0));
+        FixedTaskDTO work = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        work.setAddressId(1L);
+        FlexibleTaskDTO walk = flexibleTask("Sport", null, 30);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(work, walk), null, null);
+
+        assertThat(result.getScheduledTasks()).filteredOn(item -> item.getTask().getType() == TaskType.FLEXIBLE).hasSize(1);
+        assertThat(result.getUnscheduledTasks()).isEmpty();
+    }
+
+    @Test
+    void sameLocationFlexibleTaskCanUseTightGap() {
+        ZoneDefinitionDTO early = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(10, 0), LocalTime.of(10, 40));
+        CustomerDTO customer = customerWithZones(List.of(early));
+        customer.setSchedulingPreference(preferences(Map.of("Sport", 3), 0));
+        FixedTaskDTO work = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        work.setAddressId(1L);
+        FlexibleTaskDTO stretch = flexibleTask("Sport", null, 30);
+        stretch.setAddressId(1L);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(work, stretch), null, null);
+
+        assertThat(result.getScheduledTasks()).filteredOn(item -> item.getTask().getType() == TaskType.FLEXIBLE).hasSize(1);
+    }
+
+    @Test
+    void alreadyAcceptedFlexibleTasksAreTravelNeighborsForLaterCandidates() {
+        ZoneDefinitionDTO sport = planningWindow("Sport", Set.of(), "PREFERRED", "KEEP_INSIDE_WINDOW", null, LocalTime.of(10, 0), LocalTime.of(11, 30));
+        CustomerDTO customer = customerWithZones(List.of(sport));
+        customer.setSchedulingPreference(preferences(Map.of("Sport", 3), 0));
+        FixedTaskDTO work = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        work.setAddressId(1L);
+        FlexibleTaskDTO stretch = flexibleTask("Sport", null, 30);
+        stretch.setTitle("Stretch");
+        stretch.setAddressId(1L);
+        FlexibleTaskDTO gym = flexibleTask("Sport", null, 30);
+        gym.setTitle("Gym");
+        gym.setAddressId(2L);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(work, stretch, gym), null, null);
+
+        assertThat(result.getScheduledTasks()).filteredOn(item -> item.getTask().getType() == TaskType.FLEXIBLE).hasSize(1);
+        assertThat(result.getUnscheduledTasks()).extracting("title", "reasonCode")
+                .contains(org.assertj.core.groups.Tuple.tuple("Gym", UnscheduledReasonCode.TRAVEL_TIME_CONFLICT));
+    }
+
+    @Test
+    void fixedFixedTravelConflictDoesNotMoveOrUnscheduleFixedTasks() {
+        CustomerDTO customer = customerWithZones(List.of());
+        customer.setSchedulingPreference(preferences(Map.of("Work", 3), 0));
+        FixedTaskDTO first = fixedTask(TODAY.atTime(9, 0), TODAY.atTime(10, 0));
+        first.setAddressId(1L);
+        FixedTaskDTO second = fixedTask(TODAY.atTime(10, 10), TODAY.atTime(11, 0));
+        second.setAddressId(2L);
+
+        SchedulerRunResult result = scheduler.scheduleTasksWithReliability(customer, List.of(first, second), null, null);
+
+        assertThat(result.getScheduledTasks()).filteredOn(item -> item.getTask().getType() == TaskType.FIXED).hasSize(2);
+        assertThat(result.getScheduledTasks()).extracting(item -> item.getAssignedSlots().getFirst().getStart())
+                .contains(TODAY.atTime(9, 0), TODAY.atTime(10, 10));
+        assertThat(result.getUnscheduledTasks()).isEmpty();
+    }
+
     private SchedulingStrategy<FixedTaskDTO> fixedStrategy() {
         return (task, slots) -> new ScheduledTask(task, new TimeSlot(task.getStartDateTime(), task.getEndDateTime()));
     }
