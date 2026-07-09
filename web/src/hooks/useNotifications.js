@@ -22,6 +22,8 @@ export default function useNotifications({ poll = true } = {}) {
         }
     }, []);
 
+    // Loaded for MVP polling support. The notification center currently renders unread notifications;
+    // due-specific UI/trigger handling can be refined in a later phase.
     const loadDue = useCallback(async () => {
         try {
             const res = await api.get('/notifications/due');

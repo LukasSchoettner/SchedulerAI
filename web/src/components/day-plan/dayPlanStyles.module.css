@@ -273,6 +273,55 @@
   background: #f9fafb;
 }
 
+.travelNotice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  margin-left: 5.25rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.travelNoticeWarning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.travelNoticeOk {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.travelMarker {
+  display: inline-grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: currentColor;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.travelNotice strong,
+.travelNotice p {
+  margin: 0;
+}
+
+.travelNotice p {
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
 .timelineMain {
   display: grid;
   gap: 0.2rem;
@@ -370,6 +419,10 @@
 
   .timelineItem {
     grid-template-columns: 1fr;
+  }
+
+  .travelNotice {
+    margin-left: 0;
   }
 
   .timelineTime {

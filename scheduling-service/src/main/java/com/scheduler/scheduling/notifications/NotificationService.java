@@ -1,6 +1,7 @@
 package com.scheduler.scheduling.notifications;
 
 import com.scheduler.scheduling.models.DayPlanItem;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,11 +25,12 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final Clock clock;
 
+    @Autowired
     public NotificationService(NotificationRepository notificationRepository) {
         this(notificationRepository, Clock.systemDefaultZone());
     }
 
-    public NotificationService(NotificationRepository notificationRepository, Clock clock) {
+    NotificationService(NotificationRepository notificationRepository, Clock clock) {
         this.notificationRepository = notificationRepository;
         this.clock = clock != null ? clock : Clock.systemDefaultZone();
     }

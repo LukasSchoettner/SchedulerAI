@@ -18,6 +18,7 @@ import com.scheduler.scheduling.models.UnscheduledTaskReport;
 import com.scheduler.scheduling.notifications.NotificationService;
 import com.scheduler.scheduling.notifications.NotificationType;
 import com.scheduler.scheduling.repositories.DayPlanRepository;
+import com.scheduler.scheduling.routing.TravelWarningCode;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskProto;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
@@ -72,10 +73,16 @@ class DayPlanServiceTest {
     void generatedDayPlanIsPersistedChronologically() {
         LocalDate date = LocalDate.of(2026, 7, 4);
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.empty());
+        FlexibleTaskDTO later = flexibleTask(2L, "Later", "Duty");
+        later.setAddressId(2L);
+        later.setAddressText("Gym");
+        FlexibleTaskDTO earlier = flexibleTask(1L, "Earlier", "Health");
+        earlier.setAddressId(1L);
+        earlier.setAddressText("Home");
         when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule(
-                flexibleTask(2L, "Later", "Duty"),
+                later,
                 slot(date.atTime(14, 0), date.atTime(15, 0)),
-                flexibleTask(1L, "Earlier", "Health"),
+                earlier,
                 slot(date.atTime(8, 0), date.atTime(8, 30))
         ));
 
@@ -83,6 +90,10 @@ class DayPlanServiceTest {
 
         assertThat(response.status()).isEqualTo(DayPlanStatus.GENERATED);
         assertThat(response.items()).extracting("titleSnapshot").containsExactly("Earlier", "Later");
+        assertThat(response.items().getFirst().addressIdSnapshot()).isEqualTo(1L);
+        assertThat(response.items().getFirst().addressTextSnapshot()).isEqualTo("Home");
+        assertThat(response.transitions()).hasSize(1);
+        assertThat(response.transitions().getFirst().warningCode()).isEqualTo(TravelWarningCode.FEASIBLE);
         assertThat(response.planSignature()).contains("Earlier").contains("Later");
         verify(dayPlanRepository).save(any(DayPlan.class));
         verify(notificationService).createIfNotExists(
@@ -109,6 +120,7 @@ class DayPlanServiceTest {
         assertThat(response.items().getFirst().status()).isEqualTo(DayPlanItemStatus.KEPT);
         assertThat(response.items().getFirst().actionSource()).isEqualTo(DayPlanActionSource.USER_CONFIRMED);
         assertThat(response.items().getFirst().followUpStatus()).isEqualTo(FollowUpStatus.PENDING);
+        assertThat(response.transitions()).isEmpty();
         verify(notificationService).createTaskStartingSoon(eq(123L), eq(10L), any(DayPlanItem.class));
         verify(notificationService).createFollowUpDue(eq(123L), eq(10L), any(DayPlanItem.class));
     }

@@ -1,6 +1,7 @@
 package com.scheduler.scheduling.dto;
 
 import com.scheduler.scheduling.models.DayPlanStatus;
+import com.scheduler.scheduling.routing.ScheduleTransitionResponse;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ public record DayPlanResponse(
         Integer freeGapMinutes,
         String tightSpotSummary,
         Boolean changedFromConfirmed,
-        List<DayPlanItemResponse> items
+        List<DayPlanItemResponse> items,
+        List<ScheduleTransitionResponse> transitions
 ) {
 }

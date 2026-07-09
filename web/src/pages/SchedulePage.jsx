@@ -192,6 +192,7 @@ export default function SchedulePage() {
                         </div>
                         <TodayPlanTimeline
                             items={activeItems}
+                            transitions={dayPlan.transitions}
                             empty="No tasks scheduled today. Add tasks or regenerate the plan."
                             onComplete={completeAndRefresh}
                             onOpenDetails={() => navigate('/tasks')}

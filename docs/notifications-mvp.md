@@ -81,3 +81,9 @@ Notifications are delivered by polling:
 - Poll every 60 seconds while the app is open.
 
 This is intentionally simpler than push delivery and works without WebSockets, SSE, or mobile infrastructure.
+
+## Known MVP Limitations
+
+- The frontend currently displays unread notifications in the notification center. `/notifications/due` is loaded for MVP polling support, but due notifications are not yet displayed separately.
+- Follow-up modal suppression is backend-backed through `followUpStatus`, with a small sessionStorage guard only to prevent duplicate modals during one page session.
+- Follow-up prompting is still primarily based on day-plan item end times. `FOLLOW_UP_DUE` notifications are persisted and visible, but fully notification-driven follow-up triggering can be refined later.

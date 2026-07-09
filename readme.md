@@ -31,6 +31,8 @@ For scheduler reliability concepts, tests, and seed scenarios, see [docs/schedul
 
 Phase 3 adds a database-backed in-app notification MVP; see [docs/notifications-mvp.md](docs/notifications-mvp.md).
 
+Phase 4a adds routing feasibility checks and travel-time warnings; see [docs/routing-feasibility-mvp.md](docs/routing-feasibility-mvp.md).
+
 ## Verification
 
 ```powershell

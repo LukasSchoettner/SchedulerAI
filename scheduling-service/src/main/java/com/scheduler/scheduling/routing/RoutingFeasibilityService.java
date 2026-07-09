@@ -1,0 +1,134 @@
+package com.scheduler.scheduling.routing;
+
+import com.scheduler.scheduling.models.DayPlanItem;
+import com.scheduler.scheduling.models.DayPlanItemStatus;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+
+@Service
+public class RoutingFeasibilityService {
+
+    static final int DEFAULT_TRAVEL_MINUTES = 30;
+    static final int TIGHT_TRAVEL_THRESHOLD_MINUTES = 5;
+
+    public List<ScheduleTransitionResponse> transitionsFor(List<DayPlanItem> items) {
+        if (items == null) {
+            return List.of();
+        }
+        List<DayPlanItem> relevant = items.stream()
+                .filter(this::isTransitionRelevant)
+                .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
+                .toList();
+        if (relevant.size() < 2) {
+            return List.of();
+        }
+        return java.util.stream.IntStream.range(1, relevant.size())
+                .mapToObj(index -> transition(relevant.get(index - 1), relevant.get(index)))
+                .toList();
+    }
+
+    private boolean isTransitionRelevant(DayPlanItem item) {
+        if (item == null) return false;
+        if (item.getStatus() == DayPlanItemStatus.SKIPPED || item.getStatus() == DayPlanItemStatus.REPLACED) {
+            return false;
+        }
+        if (item.getStatus() == DayPlanItemStatus.FREE_TIME && !hasLocation(item)) {
+            return false;
+        }
+        return item.getStartDateTime() != null && item.getEndDateTime() != null;
+    }
+
+    private ScheduleTransitionResponse transition(DayPlanItem from, DayPlanItem to) {
+        int availableMinutes = (int) Duration.between(from.getEndDateTime(), to.getStartDateTime()).toMinutes();
+        Integer estimatedTravelMinutes = estimateTravelMinutes(from, to);
+
+        if (availableMinutes < 0) {
+            return response(from, to, availableMinutes, estimatedTravelMinutes, false,
+                    TravelWarningCode.INSUFFICIENT_TRAVEL_TIME,
+                    "Schedule overlap: the next item starts before the previous item ends.");
+        }
+
+        if (!hasLocation(from) || !hasLocation(to)) {
+            return response(from, to, availableMinutes, null, null,
+                    TravelWarningCode.MISSING_LOCATION,
+                    "Location missing: travel feasibility could not be checked.");
+        }
+
+        if (sameLocation(from, to)) {
+            return response(from, to, availableMinutes, 0, true,
+                    TravelWarningCode.SAME_LOCATION,
+                    "Same location: no travel time needed.");
+        }
+
+        int defaultTravel = DEFAULT_TRAVEL_MINUTES;
+        if (availableMinutes < defaultTravel) {
+            return response(from, to, availableMinutes, defaultTravel, false,
+                    TravelWarningCode.INSUFFICIENT_TRAVEL_TIME,
+                    "Travel may be too tight: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+        }
+
+        if (availableMinutes - defaultTravel <= TIGHT_TRAVEL_THRESHOLD_MINUTES) {
+            return response(from, to, availableMinutes, defaultTravel, true,
+                    TravelWarningCode.TIGHT_TRAVEL_TIME,
+                    "Travel is tight: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+        }
+
+        return response(from, to, availableMinutes, defaultTravel, true,
+                TravelWarningCode.FEASIBLE,
+                "Travel OK: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+    }
+
+    private Integer estimateTravelMinutes(DayPlanItem from, DayPlanItem to) {
+        if (!hasLocation(from) || !hasLocation(to)) return null;
+        if (sameLocation(from, to)) return 0;
+        return DEFAULT_TRAVEL_MINUTES;
+    }
+
+    private boolean hasLocation(DayPlanItem item) {
+        return item.getAddressIdSnapshot() != null || !normalize(item.getAddressTextSnapshot()).isBlank();
+    }
+
+    private boolean sameLocation(DayPlanItem from, DayPlanItem to) {
+        if (from.getAddressIdSnapshot() != null && from.getAddressIdSnapshot().equals(to.getAddressIdSnapshot())) {
+            return true;
+        }
+        String fromAddress = normalize(from.getAddressTextSnapshot());
+        String toAddress = normalize(to.getAddressTextSnapshot());
+        return !fromAddress.isBlank() && fromAddress.equals(toAddress);
+    }
+
+    private String normalize(String value) {
+        if (value == null) return "";
+        return value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+    }
+
+    private ScheduleTransitionResponse response(
+            DayPlanItem from,
+            DayPlanItem to,
+            Integer availableMinutes,
+            Integer estimatedTravelMinutes,
+            Boolean feasible,
+            TravelWarningCode warningCode,
+            String warningMessage
+    ) {
+        return new ScheduleTransitionResponse(
+                from.getId(),
+                to.getId(),
+                from.getTitleSnapshot(),
+                to.getTitleSnapshot(),
+                from.getAddressIdSnapshot(),
+                to.getAddressIdSnapshot(),
+                from.getAddressTextSnapshot(),
+                to.getAddressTextSnapshot(),
+                availableMinutes,
+                estimatedTravelMinutes,
+                feasible,
+                warningCode,
+                warningMessage
+        );
+    }
+}

@@ -20,6 +20,8 @@ public record DayPlanItemResponse(
         String notes,
         Integer prioritySnapshot,
         String recurrencePatternSnapshot,
+        Long addressIdSnapshot,
+        String addressTextSnapshot,
         FollowUpStatus followUpStatus,
         LocalDateTime followUpPromptedAt,
         LocalDateTime followUpAnsweredAt,

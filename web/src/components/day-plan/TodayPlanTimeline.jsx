@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { canonicalizeCategory } from '../../lib/categories';
+import TravelTransitionNotice from './TravelTransitionNotice';
 import styles from './dayPlanStyles.module.css';
 import {
     canSkipItem,
@@ -10,50 +11,60 @@ import {
     skipLabelForItem,
 } from './dayPlanUtils';
 
-export default function TodayPlanTimeline({ items = [], empty, onComplete, onOpenDetails, onKeepFree, onSkip }) {
+export default function TodayPlanTimeline({ items = [], transitions = [], empty, onComplete, onOpenDetails, onKeepFree, onSkip }) {
     if (!items.length) {
         return <p className={styles.emptyInline}>{empty || 'No tasks scheduled today.'}</p>;
     }
 
     return (
         <ol className={styles.timeline}>
-            {items.map(item => {
+            {items.map((item, index) => {
                 const category = canonicalizeCategory(item.categorySnapshot);
                 const color = categorySoftStyle(category);
                 const isCompleted = item.status === 'COMPLETED';
                 const isFreeTime = item.status === 'FREE_TIME' || item.titleSnapshot === 'Free time';
+                const transition = findTransition(transitions, item, items[index + 1]);
                 return (
-                    <li
-                        key={item.id}
-                        className={`${styles.timelineItem} ${isCompleted ? styles.timelineItemCompleted : ''} ${isFreeTime ? styles.timelineItemReserved : ''}`}
-                        style={{ borderLeftColor: color.border }}
-                    >
-                        <div className={styles.timelineTime}>
-                            <strong>{formatTimeOnly(item.startDateTime)}</strong>
-                            <span>{formatTimeOnly(item.endDateTime)}</span>
-                        </div>
-                        <div className={styles.timelineMain}>
-                            <div className={styles.timelineTitleRow}>
-                                <strong>{item.titleSnapshot}</strong>
-                                <span className={styles.categoryPill} style={color}>{isFreeTime ? 'Reserved' : category}</span>
+                    <Fragment key={item.id || `${item.startDateTime}-${item.titleSnapshot}`}>
+                        <li
+                            className={`${styles.timelineItem} ${isCompleted ? styles.timelineItemCompleted : ''} ${isFreeTime ? styles.timelineItemReserved : ''}`}
+                            style={{ borderLeftColor: color.border }}
+                        >
+                            <div className={styles.timelineTime}>
+                                <strong>{formatTimeOnly(item.startDateTime)}</strong>
+                                <span>{formatTimeOnly(item.endDateTime)}</span>
                             </div>
-                            <p>
-                                {category} - {formatTaskType(item.taskTypeSnapshot)} - {formatItemStatus(item.status)}
-                                {item.occurrenceKey ? ' - Recurring' : ''}
-                            </p>
-                        </div>
-                        <TaskActions
-                            item={item}
-                            onComplete={onComplete}
-                            onOpenDetails={onOpenDetails}
-                            onKeepFree={item.taskTypeSnapshot === 'FIXED' ? null : onKeepFree}
-                            onSkip={canSkipItem(item) ? onSkip : null}
-                        />
-                    </li>
+                            <div className={styles.timelineMain}>
+                                <div className={styles.timelineTitleRow}>
+                                    <strong>{item.titleSnapshot}</strong>
+                                    <span className={styles.categoryPill} style={color}>{isFreeTime ? 'Reserved' : category}</span>
+                                </div>
+                                <p>
+                                    {category} - {formatTaskType(item.taskTypeSnapshot)} - {formatItemStatus(item.status)}
+                                    {item.occurrenceKey ? ' - Recurring' : ''}
+                                </p>
+                            </div>
+                            <TaskActions
+                                item={item}
+                                onComplete={onComplete}
+                                onOpenDetails={onOpenDetails}
+                                onKeepFree={item.taskTypeSnapshot === 'FIXED' ? null : onKeepFree}
+                                onSkip={canSkipItem(item) ? onSkip : null}
+                            />
+                        </li>
+                        {transition && <TravelTransitionNotice transition={transition} />}
+                    </Fragment>
                 );
             })}
         </ol>
     );
+}
+
+function findTransition(transitions, from, to) {
+    if (!to || !Array.isArray(transitions)) return null;
+    return transitions.find(transition => (
+        transition.fromDayPlanItemId === from.id && transition.toDayPlanItemId === to.id
+    )) || null;
 }
 
 function TaskActions({ item, onComplete, onOpenDetails, onKeepFree, onSkip }) {

@@ -17,6 +17,7 @@ import com.scheduler.scheduling.models.UnscheduledTaskReport;
 import com.scheduler.scheduling.notifications.NotificationService;
 import com.scheduler.scheduling.notifications.NotificationType;
 import com.scheduler.scheduling.repositories.DayPlanRepository;
+import com.scheduler.scheduling.routing.RoutingFeasibilityService;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
 import com.scheduler.taskmanagement.grpc.UpdateTaskStatusRequest;
@@ -48,23 +49,36 @@ public class DayPlanService {
     private final DayPlanRepository dayPlanRepository;
     private final TaskSchedulerService taskSchedulerService;
     private final NotificationService notificationService;
+    private final RoutingFeasibilityService routingFeasibilityService;
 
     @GrpcClient("task-service")
     private TaskServiceGrpc.TaskServiceBlockingStub taskStub;
 
     public DayPlanService(DayPlanRepository dayPlanRepository, TaskSchedulerService taskSchedulerService) {
-        this(dayPlanRepository, taskSchedulerService, null);
+        this(dayPlanRepository, taskSchedulerService, null, new RoutingFeasibilityService());
+    }
+
+    public DayPlanService(
+            DayPlanRepository dayPlanRepository,
+            TaskSchedulerService taskSchedulerService,
+            NotificationService notificationService
+    ) {
+        this(dayPlanRepository, taskSchedulerService, notificationService, new RoutingFeasibilityService());
     }
 
     @Autowired
     public DayPlanService(
             DayPlanRepository dayPlanRepository,
             TaskSchedulerService taskSchedulerService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            RoutingFeasibilityService routingFeasibilityService
     ) {
         this.dayPlanRepository = dayPlanRepository;
         this.taskSchedulerService = taskSchedulerService;
         this.notificationService = notificationService;
+        this.routingFeasibilityService = routingFeasibilityService != null
+                ? routingFeasibilityService
+                : new RoutingFeasibilityService();
     }
 
     @Transactional(readOnly = true)
@@ -349,6 +363,8 @@ public class DayPlanService {
         item.setActionSource(DayPlanActionSource.GENERATED);
         item.setPrioritySnapshot(task.getPriority());
         item.setRecurrencePatternSnapshot(task.getRecurrencePattern());
+        item.setAddressIdSnapshot(task.getAddressId());
+        item.setAddressTextSnapshot(task.getAddressText());
         item.setFollowUpStatus(task.getType() == TaskType.FLEXIBLE ? FollowUpStatus.NOT_NEEDED : FollowUpStatus.NOT_NEEDED);
         return item;
     }
@@ -367,6 +383,8 @@ public class DayPlanService {
         copy.setNotes(source.getNotes());
         copy.setPrioritySnapshot(source.getPrioritySnapshot());
         copy.setRecurrencePatternSnapshot(source.getRecurrencePatternSnapshot());
+        copy.setAddressIdSnapshot(source.getAddressIdSnapshot());
+        copy.setAddressTextSnapshot(source.getAddressTextSnapshot());
         copy.setFollowUpStatus(source.getFollowUpStatus());
         copy.setFollowUpPromptedAt(source.getFollowUpPromptedAt());
         copy.setFollowUpAnsweredAt(source.getFollowUpAnsweredAt());
@@ -470,7 +488,8 @@ public class DayPlanService {
                 plan.getItems().stream()
                         .sorted(Comparator.comparing(DayPlanItem::getStartDateTime))
                         .map(this::toResponse)
-                        .toList()
+                        .toList(),
+                routingFeasibilityService.transitionsFor(plan.getItems())
         );
     }
 
@@ -489,6 +508,8 @@ public class DayPlanService {
                 item.getNotes(),
                 item.getPrioritySnapshot(),
                 item.getRecurrencePatternSnapshot(),
+                item.getAddressIdSnapshot(),
+                item.getAddressTextSnapshot(),
                 item.getFollowUpStatus(),
                 item.getFollowUpPromptedAt(),
                 item.getFollowUpAnsweredAt(),

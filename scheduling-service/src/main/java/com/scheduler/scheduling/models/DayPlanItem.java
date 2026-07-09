@@ -64,6 +64,10 @@ public class DayPlanItem {
 
     private String recurrencePatternSnapshot;
 
+    private Long addressIdSnapshot;
+
+    private String addressTextSnapshot;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FollowUpStatus followUpStatus = FollowUpStatus.NOT_NEEDED;
