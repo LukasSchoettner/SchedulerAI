@@ -84,6 +84,6 @@ Follow-up behavior continues to use the existing day-plan item completion and re
 - Phase 5a is still a web app experience, not a native mobile app.
 - Push notifications are not included.
 - Offline sync is not included.
-- PWA installability and service worker support are postponed to Phase 5b.
+- PWA installability and service worker support are handled in Phase 5b and target Android Chrome/Chromium browsers.
 - Quick Add does not include recurrence, dependencies, project setup, attachments, voice input, OCR, AI parsing, calendar import, or bulk editing.
 - Save-and-regenerate depends on an existing page-level regeneration callback. If that callback is unavailable, the UI tells the user to regenerate the day plan manually.

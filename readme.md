@@ -35,6 +35,8 @@ Phase 4a adds routing feasibility checks and travel-time warnings; see [docs/rou
 
 Phase 5a adds mobile daily-flow and Quick Add Task behavior; see [docs/mobile-daily-flow.md](docs/mobile-daily-flow.md).
 
+Phase 5b adds Android PWA installability and app-like polish; see [docs/pwa-installability.md](docs/pwa-installability.md).
+
 ## Verification
 
 ```powershell

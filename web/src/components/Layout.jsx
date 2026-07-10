@@ -3,6 +3,8 @@ import { Link, Outlet } from 'react-router-dom';
 import NotificationCenter from './NotificationCenter';
 import { DayPlanActionsProvider, useDayPlanActions } from './layout/DayPlanActionsContext';
 import MobileBottomNav from './layout/MobileBottomNav';
+import ConnectionStatusBanner from './pwa/ConnectionStatusBanner';
+import InstallAppPrompt from './pwa/InstallAppPrompt';
 import QuickAddTaskSheet from './tasks/QuickAddTaskSheet';
 import styles from './Layout.module.css';
 
@@ -20,6 +22,7 @@ function LayoutContent() {
 
   return (
     <div className={styles.layout}>
+      <ConnectionStatusBanner />
       <nav className={styles.nav}>
         <Link to="/home">Home</Link>
         <Link to="/tasks">Tasks</Link>
@@ -36,6 +39,7 @@ function LayoutContent() {
         onClose={() => setQuickAddOpen(false)}
         regenerateToday={actions.regenerateToday}
       />
+      <InstallAppPrompt />
     </div>
   );
 }
