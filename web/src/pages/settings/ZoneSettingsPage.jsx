@@ -409,7 +409,7 @@ function PlanningWindowWizard({
     });
 
     return (
-        <section className={styles.wizard}>
+        <section className={styles.wizard} role="dialog" aria-label="Planning Window wizard">
             <div className={styles.rowBetween}>
                 <div>
                     <span className={styles.eyebrow}>Planning Window wizard</span>
@@ -584,7 +584,7 @@ function PlanningWindowWizard({
                 </>
             )}
 
-            <div className={styles.actions}>
+            <div className={`${styles.actions} ${styles.wizardActions}`}>
                 <button type="button" className={styles.button} onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}>Back</button>
                 {step < WIZARD_STEPS.length - 1 ? (
                     <button type="button" className={styles.primaryButton} onClick={() => setStep(step + 1)}>Next</button>
