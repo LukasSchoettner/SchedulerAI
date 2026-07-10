@@ -54,6 +54,7 @@ describe('NotificationCenter', () => {
         expect(await screen.findByText('1')).toBeInTheDocument();
         await userEvent.click(screen.getByRole('button', { name: /Notifications/i }));
 
+        expect(screen.getByText('Follow-up')).toBeInTheDocument();
         expect(screen.getByText('Task follow-up')).toBeInTheDocument();
         expect(screen.getByText(/Project report/i)).toBeInTheDocument();
     });
@@ -64,6 +65,9 @@ describe('NotificationCenter', () => {
 
         await screen.findByText('1');
         await user.click(screen.getByRole('button', { name: /Notifications/i }));
+
+        expect(screen.getByText('Follow-up')).toBeInTheDocument();
+        expect(screen.getByText('Task follow-up')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Read' }));
         await user.click(screen.getByRole('button', { name: 'Dismiss' }));
 

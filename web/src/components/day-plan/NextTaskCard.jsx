@@ -37,6 +37,20 @@ export default function NextTaskCard({
         );
     }
 
+    if (!dayPlan) {
+        return (
+            <section className={styles.panel}>
+                <span className={styles.eyebrow}>Today</span>
+                <h3>No plan for today yet.</h3>
+                <p>Generate or review today's plan to get started.</p>
+                <div className={styles.inlineActions}>
+                    {onRegenerate && <button type="button" className={styles.primaryBtn} onClick={onRegenerate}>Generate today</button>}
+                    <Link className={styles.secondaryBtn} to="/schedule">Open Schedule</Link>
+                </div>
+            </section>
+        );
+    }
+
     const nextTask = currentOrNextItem(items);
     const label = nextTask && isCurrent(nextTask) ? 'Now' : 'Next up';
     const transition = transitionForItem(transitions, nextTask);

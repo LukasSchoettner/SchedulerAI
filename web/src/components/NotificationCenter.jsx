@@ -59,6 +59,9 @@ export default function NotificationCenter({ variant = 'default' }) {
                         {notifications.map(notification => (
                             <li key={notification.id} className={styles.item}>
                                 <button type="button" onClick={() => openNotification(notification)}>
+                                    <small className={styles.typeLabel}>
+                                        {formatNotificationType(notification.type)}
+                                    </small>
                                     <strong>{notification.title}</strong>
                                     <span>{notification.message}</span>
                                     {notification.dueAt && <small>Due {formatNotificationTime(notification.dueAt)}</small>}
@@ -80,4 +83,16 @@ function formatNotificationTime(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatNotificationType(type) {
+    const labels = {
+        DAY_PLAN_CONFIRMATION_NEEDED: 'Plan confirmation',
+        TASK_STARTING_SOON: 'Task starting',
+        FOLLOW_UP_DUE: 'Follow-up',
+        UNSCHEDULED_TASKS: 'Unscheduled tasks',
+        PLAN_CHANGED: 'Plan changed',
+        REMINDER_DATE_REACHED: 'Reminder',
+    };
+    return labels[type] || String(type || 'Notification').replaceAll('_', ' ').toLowerCase();
 }

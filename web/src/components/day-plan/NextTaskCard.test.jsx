@@ -22,6 +22,16 @@ describe('NextTaskCard', () => {
     expect(onConfirm).toHaveBeenCalled();
   });
 
+  test('shows no-plan state before done-for-today state', () => {
+    render(<NextTaskCard items={[]} onRegenerate={vi.fn()} />, { wrapper: MemoryRouter });
+
+    expect(screen.getByText(/No plan for today yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/Generate or review today's plan/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No upcoming tasks left/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate today' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Schedule' })).toHaveAttribute('href', '/schedule');
+  });
+
   test('shows current task as Now with travel warning', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-09T10:15:00'));
