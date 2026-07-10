@@ -77,13 +77,7 @@ $env:APP_CORS_ALLOWED_ORIGINS="https://imagine-him-happy.de,http://localhost:517
 docker compose up --build
 ```
 
-4. Start an HTTPS tunnel to the API gateway port, normally `8080`.
-
-Example only:
-
-```text
-https://your-temporary-tunnel-url.example -> http://localhost:8080
-```
+4. Start an HTTPS tunnel to the API gateway port, normally `8080`. See [Start The Ngrok Tunnel](#start-the-ngrok-tunnel).
 
 5. Set the frontend API URL to the HTTPS tunnel URL before building:
 
@@ -117,6 +111,63 @@ https://imagine-him-happy.de/settings
     - mark one task completed;
     - check notifications and travel warnings if present.
 12. Stop the HTTPS tunnel when testing is finished.
+
+## Start The Ngrok Tunnel
+
+Start the backend stack first. The API gateway must be reachable locally at:
+
+```text
+http://localhost:8080
+```
+
+Then start ngrok against port `8080`:
+
+```powershell
+ngrok http 8080
+```
+
+Expected ngrok output should look like:
+
+```text
+Forwarding https://your-ngrok-url.ngrok-free.dev -> http://localhost:8080
+```
+
+The HTTPS forwarding URL is the value for `VITE_API_URL`.
+
+Set `VITE_API_URL` before building the frontend because Vite embeds it at build time:
+
+```powershell
+$env:VITE_API_URL="https://your-ngrok-url.ngrok-free.dev"
+pnpm --dir web run build
+```
+
+Do not use `http://localhost:8080` as `VITE_API_URL` for the deployed Hetzner frontend. A phone opening `https://imagine-him-happy.de` cannot reach your computer's `localhost`.
+
+Do not tunnel PostgreSQL ports. Do not tunnel individual service ports. Tunnel only the API gateway port `8080`.
+
+## Quick Command Flow
+
+Terminal 1:
+
+```powershell
+$env:APP_CORS_ALLOWED_ORIGINS="https://imagine-him-happy.de,http://localhost:5173"
+docker compose up --build
+```
+
+Terminal 2:
+
+```powershell
+ngrok http 8080
+```
+
+Terminal 3:
+
+```powershell
+$env:VITE_API_URL="https://your-ngrok-url.ngrok-free.dev"
+pnpm --dir web run build
+```
+
+Then upload the contents of `web/dist/` to Hetzner.
 
 ## Hetzner Static Frontend Deployment
 
@@ -176,6 +227,15 @@ Expected result:
 ```text
 True
 ```
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+| --- | --- | --- |
+| ngrok forwards to `http://localhost:80`. | ngrok was started without the correct port or with the wrong port. | Stop ngrok with `Ctrl+C` and restart it with `ngrok http 8080`. |
+| Deployed frontend cannot call backend. | `VITE_API_URL` was built with the wrong URL, ngrok is stopped, backend stack is not running, or CORS does not include `https://imagine-him-happy.de`. | Restart backend, restart ngrok on port `8080`, rebuild frontend with the HTTPS ngrok URL, redeploy `web/dist/`, and verify `APP_CORS_ALLOWED_ORIGINS`. |
+| CORS error in browser console. | `APP_CORS_ALLOWED_ORIGINS` does not include the exact frontend origin. | Set `APP_CORS_ALLOWED_ORIGINS=https://imagine-him-happy.de,http://localhost:5173` and restart the backend stack. |
+| Login request goes to `https://imagine-him-happy.de` instead of the ngrok URL. | `VITE_API_URL` was not set before build, or the old frontend build is still deployed/cached. | Set `VITE_API_URL` to the ngrok HTTPS forwarding URL, rebuild, redeploy `web/dist/`, and hard-refresh or clear PWA/browser cache if needed. |
 
 ## Known Limitations
 
