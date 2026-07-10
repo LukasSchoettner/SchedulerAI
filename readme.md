@@ -37,6 +37,8 @@ Phase 5a adds mobile daily-flow and Quick Add Task behavior; see [docs/mobile-da
 
 Phase 5b adds Android PWA installability and app-like polish; see [docs/pwa-installability.md](docs/pwa-installability.md).
 
+Phase 6 preflight testing instructions are documented in [docs/phase-6-preflight.md](docs/phase-6-preflight.md).
+
 ## Verification
 
 ```powershell
