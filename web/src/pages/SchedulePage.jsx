@@ -158,9 +158,6 @@ export default function SchedulePage() {
                             Week
                         </button>
                     </div>
-                    <button type="button" className={styles.secondaryBtn} onClick={regenerateAndRefresh} disabled={loading}>
-                        Regenerate
-                    </button>
                     {planNeedsConfirmation && (
                         <button type="button" className={styles.primaryBtn} onClick={confirmDayPlan} disabled={loading}>
                             Confirm plan

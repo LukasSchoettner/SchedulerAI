@@ -1,18 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BUILT_IN_CATEGORIES } from '../../lib/categories';
-import useCreateTask, { buildQuickTaskPayload } from '../../hooks/useCreateTask';
+import useCreateTask, { buildQuickTaskPayload, defaultQuickAddForm } from '../../hooks/useCreateTask';
 import styles from './QuickAddTaskSheet.module.css';
 
-const DEFAULT_FORM = {
-  title: '',
-  category: 'Work',
-  estimatedDuration: 60,
-  priority: 3,
-  dueDate: '',
-  addressText: '',
-  scheduleToday: false,
-};
+const PRIORITIES = [
+  ['Optional', 1],
+  ['Low', 2],
+  ['Normal', 3],
+  ['High', 4],
+  ['Urgent', 5],
+];
 
 export default function QuickAddTaskSheet({
   open,
@@ -20,7 +18,7 @@ export default function QuickAddTaskSheet({
   regenerateToday,
 }) {
   const navigate = useNavigate();
-  const [form, setForm] = useState(DEFAULT_FORM);
+  const [form, setForm] = useState(() => defaultQuickAddForm());
   const [message, setMessage] = useState('');
   const { createTask, saving, error, setError } = useCreateTask();
   const canRegenerate = Boolean(regenerateToday);
@@ -35,7 +33,7 @@ export default function QuickAddTaskSheet({
   };
 
   const resetAndClose = () => {
-    setForm(DEFAULT_FORM);
+    setForm(defaultQuickAddForm());
     setMessage('');
     setError('');
     onClose?.();
@@ -44,6 +42,10 @@ export default function QuickAddTaskSheet({
   const save = async ({ regenerate = false } = {}) => {
     if (!form.title.trim()) {
       setError('Add a title first.');
+      return;
+    }
+    if (form.taskType === 'FIXED' && Number(form.fixedDuration || 0) <= 0) {
+      setError('Choose a fixed task duration greater than 0 minutes.');
       return;
     }
 
@@ -61,7 +63,7 @@ export default function QuickAddTaskSheet({
         return;
       }
       setMessage('Task saved. Regenerate your day plan to include it.');
-      setForm(DEFAULT_FORM);
+      setForm(defaultQuickAddForm());
       return;
     }
 
@@ -70,7 +72,7 @@ export default function QuickAddTaskSheet({
 
   const openFullEditor = () => {
     onClose?.();
-    navigate('/tasks');
+    navigate('/tasks', { state: { quickAddDraft: form } });
   };
 
   return (
@@ -96,6 +98,23 @@ export default function QuickAddTaskSheet({
           />
         </label>
 
+        <div className={styles.typeToggle} aria-label="Task type">
+          <button
+            type="button"
+            className={form.taskType === 'FLEXIBLE' ? styles.typeActive : ''}
+            onClick={() => setField('taskType', 'FLEXIBLE')}
+          >
+            Flexible
+          </button>
+          <button
+            type="button"
+            className={form.taskType === 'FIXED' ? styles.typeActive : ''}
+            onClick={() => setField('taskType', 'FIXED')}
+          >
+            Fixed
+          </button>
+        </div>
+
         <div className={styles.compactGrid}>
           <label className={styles.field}>
             <span>Category</span>
@@ -109,8 +128,8 @@ export default function QuickAddTaskSheet({
           <label className={styles.field}>
             <span>Duration</span>
             <select
-              value={form.estimatedDuration}
-              onChange={(event) => setField('estimatedDuration', Number(event.target.value))}
+              value={form.taskType === 'FIXED' ? form.fixedDuration : form.estimatedDuration}
+              onChange={(event) => setField(form.taskType === 'FIXED' ? 'fixedDuration' : 'estimatedDuration', Number(event.target.value))}
             >
               <option value={15}>15 min</option>
               <option value={30}>30 min</option>
@@ -124,18 +143,29 @@ export default function QuickAddTaskSheet({
           <label className={styles.field}>
             <span>Priority</span>
             <select value={form.priority} onChange={(event) => setField('priority', Number(event.target.value))}>
-              <option value={1}>Low</option>
-              <option value={2}>Normal</option>
-              <option value={3}>High</option>
-              <option value={4}>Very high</option>
-              <option value={5}>Urgent</option>
+              {PRIORITIES.map(([label, value]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </label>
 
-          <label className={styles.field}>
-            <span>Due date</span>
-            <input type="date" value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
-          </label>
+          {form.taskType === 'FLEXIBLE' ? (
+            <label className={styles.field}>
+              <span>Due date</span>
+              <input type="date" value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
+            </label>
+          ) : (
+            <>
+              <label className={styles.field}>
+                <span>Date</span>
+                <input type="date" value={form.fixedDate} onChange={(event) => setField('fixedDate', event.target.value)} />
+              </label>
+              <label className={styles.field}>
+                <span>Start time</span>
+                <input type="time" value={form.fixedStartTime} onChange={(event) => setField('fixedStartTime', event.target.value)} />
+              </label>
+            </>
+          )}
         </div>
 
         <label className={styles.field}>
@@ -147,17 +177,19 @@ export default function QuickAddTaskSheet({
           />
         </label>
 
-        <label className={styles.toggleRow}>
-          <input
-            type="checkbox"
-            checked={form.scheduleToday}
-            onChange={(event) => setField('scheduleToday', event.target.checked)}
-          />
-          <span>
-            Schedule today
-            <small>Only then Quick Add sets an earliest start time and can regenerate today's plan.</small>
-          </span>
-        </label>
+        {form.taskType === 'FLEXIBLE' && (
+          <label className={styles.toggleRow}>
+            <input
+              type="checkbox"
+              checked={form.scheduleToday}
+              onChange={(event) => setField('scheduleToday', event.target.checked)}
+            />
+            <span>
+              Schedule today
+              <small>Only then Quick Add sets an earliest start time and can regenerate today's plan.</small>
+            </span>
+          </label>
+        )}
 
         {message && <p className={styles.success}>{message}</p>}
         {error && <p className={styles.error}>{error}</p>}
@@ -173,8 +205,8 @@ export default function QuickAddTaskSheet({
             type="button"
             className={styles.primaryBtn}
             onClick={() => save({ regenerate: true })}
-            disabled={saving || !payloadPreview.title || !form.scheduleToday}
-            title={!form.scheduleToday ? 'Turn on Schedule today first.' : undefined}
+            disabled={saving || !payloadPreview.title || form.taskType !== 'FLEXIBLE' || !form.scheduleToday}
+            title={form.taskType !== 'FLEXIBLE' || !form.scheduleToday ? 'Turn on Schedule today for a flexible task first.' : undefined}
           >
             Save and regenerate today
           </button>

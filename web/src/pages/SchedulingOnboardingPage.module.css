@@ -4,6 +4,7 @@
   padding: 1.25rem;
   color: #1f2933;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .header {
@@ -59,6 +60,8 @@
   background: #fff;
   color: #1f2933;
   box-shadow: 0 8px 24px rgba(31, 41, 51, 0.06);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .panel h3 {
@@ -166,6 +169,7 @@
   padding: 0.7rem 0;
   border-bottom: 1px solid #e7ecef;
   color: #1f2933;
+  min-width: 0;
 }
 
 .rankItem:last-child {
@@ -259,6 +263,9 @@
 .minimumRow select,
 .panel input,
 .panel select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #c9d4dc;
   border-radius: 6px;
   background: #fff;
@@ -347,7 +354,28 @@
 
 @media (max-width: 720px) {
   .container {
-    padding: 1rem;
+    width: 100%;
+    padding: 0.85rem;
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  .header h2 {
+    font-size: 1.45rem;
+  }
+
+  .panel {
+    padding: 0.9rem;
+    border-radius: 8px;
+    overflow-x: hidden;
+  }
+
+  .choiceGrid,
+  .twoColumn,
+  .timeRange,
+  .checkboxGrid,
+  .targetGrid {
+    grid-template-columns: 1fr;
   }
 
   .minimumRow,
@@ -355,6 +383,19 @@
   .rankItem,
   .zoneDefinition {
     grid-template-columns: 1fr;
+  }
+
+  .definitionEditor,
+  .zoneDefinition,
+  .summaryBox {
+    padding: 0.8rem;
+  }
+
+  .zoneBuilder,
+  .definitionEditor,
+  .rankingList,
+  .zoneList {
+    min-width: 0;
   }
 
   .rankNumber {
@@ -367,8 +408,34 @@
     width: 100%;
   }
 
+  .choiceGrid button,
   .rankItem button,
-  .actions button {
+  .actions button,
+  .definitionEditor button,
+  .summaryRow button {
     flex: 1;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .actions {
+    position: sticky;
+    bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    z-index: 2;
+    padding: 0.75rem;
+    margin: 1rem -0.9rem -0.9rem;
+    border-top: 1px solid #d9e0e4;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+  }
+
+  .inlineCheck {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
+  .inlineCheck input {
+    width: 1.15rem;
+    height: 1.15rem;
   }
 }

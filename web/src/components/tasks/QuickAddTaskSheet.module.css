@@ -47,6 +47,7 @@
 
 .iconBtn,
 .actions button,
+.typeToggle button,
 .field input,
 .field select {
   min-height: 2.55rem;
@@ -55,6 +56,28 @@
   background: #ffffff;
   color: #17202a;
   font: inherit;
+}
+
+.typeToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.2rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.typeToggle button {
+  min-height: 2.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.typeActive {
+  border-color: #1565c0 !important;
+  background: #eaf2ff !important;
+  color: #0b3d73 !important;
 }
 
 .iconBtn {

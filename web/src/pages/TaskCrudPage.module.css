@@ -175,6 +175,29 @@
   cursor: pointer;
 }
 
+.advancedDisclosure {
+  display: grid;
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+}
+
+.advancedDisclosure > button {
+  width: fit-content;
+}
+
+.advancedPanel {
+  display: grid;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.advancedPanel > .formGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .wizardActions {
   display: flex;
   justify-content: flex-end;
@@ -313,9 +336,14 @@ button:disabled {
     justify-content: stretch;
   }
 
+  .advancedDisclosure > button,
   .wizardActions button,
   .taskActions button,
   .secondaryBtn {
     width: 100%;
+  }
+
+  .advancedPanel > .formGrid {
+    grid-template-columns: 1fr;
   }
 }

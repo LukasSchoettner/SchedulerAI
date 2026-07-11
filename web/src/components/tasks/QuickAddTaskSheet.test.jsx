@@ -28,10 +28,11 @@ describe('QuickAddTaskSheet', () => {
     api.post.mockResolvedValue({ data: { id: 42 } });
   });
 
-  test('title-only quick add submits flexible task without forced deadline fields', async () => {
+  test('title-only quick add submits flexible task with today as displayed due date', async () => {
     const user = userEvent.setup();
     render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
 
+    expect(screen.getByLabelText(/Due date/i).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await user.type(screen.getByLabelText(/Title/i), 'Buy milk');
     await user.click(screen.getByRole('button', { name: 'Save task' }));
 
@@ -45,9 +46,21 @@ describe('QuickAddTaskSheet', () => {
       taskNature: 'FIXED_ESTIMATE',
     })));
     const payload = api.post.mock.calls[0][1];
-    expect(payload).not.toHaveProperty('dueDate');
+    expect(payload.dueDate).toMatch(/T23:59:00$/);
     expect(payload).not.toHaveProperty('latestEndDateTime');
     expect(payload).not.toHaveProperty('earliestStartDateTime');
+  });
+
+  test('clearing quick add due date omits dueDate from payload', async () => {
+    const user = userEvent.setup();
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    await user.type(screen.getByLabelText(/Title/i), 'No deadline idea');
+    await user.clear(screen.getByLabelText(/Due date/i));
+    await user.click(screen.getByRole('button', { name: 'Save task' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(api.post.mock.calls[0][1]).not.toHaveProperty('dueDate');
   });
 
   test('optional fields update payload', async () => {
@@ -110,8 +123,40 @@ describe('QuickAddTaskSheet', () => {
     const user = userEvent.setup();
     render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
 
+    await user.type(screen.getByLabelText(/Title/i), 'Draft title');
     await user.click(screen.getByRole('button', { name: 'More options' }));
 
-    expect(navigate).toHaveBeenCalledWith('/tasks');
+    expect(navigate).toHaveBeenCalledWith('/tasks', expect.objectContaining({
+      state: expect.objectContaining({
+        quickAddDraft: expect.objectContaining({ title: 'Draft title' }),
+      }),
+    }));
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  test('fixed quick add submits fixed task payload', async () => {
+    const user = userEvent.setup();
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    await user.click(screen.getByRole('button', { name: 'Fixed' }));
+    await user.type(screen.getByLabelText(/Title/i), 'Doctor appointment');
+    await user.clear(screen.getByLabelText(/Date/i));
+    await user.type(screen.getByLabelText(/Date/i), '2026-07-11');
+    await user.clear(screen.getByLabelText(/Start time/i));
+    await user.type(screen.getByLabelText(/Start time/i), '09:30');
+    await user.selectOptions(screen.getByLabelText(/Duration/i), '60');
+    await user.click(screen.getByRole('button', { name: 'Save task' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(api.post.mock.calls[0][1]).toMatchObject({
+      title: 'Doctor appointment',
+      type: 'FIXED',
+      status: 'PENDING',
+      priority: 3,
+      category: 'Work',
+      startDateTime: '2026-07-11T09:30:00',
+      endDateTime: '2026-07-11T10:30:00',
+      dueDate: '2026-07-11T10:30:00',
+    });
   });
 });

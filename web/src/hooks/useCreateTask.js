@@ -25,13 +25,38 @@ export default function useCreateTask() {
 
 export function buildQuickTaskPayload(form, now = new Date()) {
   const title = String(form.title || '').trim();
+  const category = canonicalizeCategory(form.category || 'Work') || 'Work';
+  const priority = Number(form.priority || 3);
+
+  if (form.taskType === 'FIXED') {
+    const startDateTime = fixedStartDateTime(form);
+    const endDateTime = addMinutes(startDateTime, Number(form.fixedDuration || form.estimatedDuration || 60));
+    const payload = {
+      title,
+      type: 'FIXED',
+      priority,
+      status: 'PENDING',
+      recurrencePattern: 'NONE',
+      category,
+      dueDate: endDateTime,
+      startDateTime,
+      endDateTime,
+    };
+
+    if (form.addressText?.trim()) {
+      payload.addressText = form.addressText.trim();
+    }
+
+    return payload;
+  }
+
   const payload = {
     title,
     type: 'FLEXIBLE',
-    priority: Number(form.priority || 3),
+    priority,
     status: 'PENDING',
     recurrencePattern: 'NONE',
-    category: canonicalizeCategory(form.category || 'Work') || 'Work',
+    category,
     estimatedDuration: Number(form.estimatedDuration || 60),
     bufferTime: 10,
     taskNature: 'FIXED_ESTIMATE',
@@ -58,6 +83,35 @@ export function buildQuickTaskPayload(form, now = new Date()) {
   return payload;
 }
 
+export function defaultQuickAddForm(now = new Date()) {
+  return {
+    taskType: 'FLEXIBLE',
+    title: '',
+    category: 'Work',
+    estimatedDuration: 60,
+    fixedDate: toDateInput(now),
+    fixedStartTime: toTimeInput(now),
+    fixedDuration: 60,
+    priority: 3,
+    dueDate: toDateInput(now),
+    addressText: '',
+    scheduleToday: false,
+    recurrencePattern: 'NONE',
+  };
+}
+
+export function fixedStartDateTime(form) {
+  const date = form.fixedDate || toDateInput(new Date());
+  const time = form.fixedStartTime || '09:00';
+  return `${date}T${time}:00`;
+}
+
+export function addMinutes(value, minutes) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() + Number(minutes || 0));
+  return toLocalDateTime(date);
+}
+
 function formatCreateError(err) {
   if (err?.response?.status) {
     return `Task could not be saved. Backend returned ${err.response.status}.`;
@@ -74,5 +128,20 @@ function toLocalDateTime(date) {
     String(date.getHours()).padStart(2, '0'),
     String(date.getMinutes()).padStart(2, '0'),
     String(date.getSeconds()).padStart(2, '0'),
+  ].join(':');
+}
+
+function toDateInput(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function toTimeInput(date) {
+  return [
+    String(date.getHours()).padStart(2, '0'),
+    String(date.getMinutes()).padStart(2, '0'),
   ].join(':');
 }

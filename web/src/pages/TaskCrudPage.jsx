@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../lib/api';
 import {
     canonicalizeCategory,
@@ -9,10 +10,10 @@ import LocationPicker from '../components/LocationPicker';
 
 const CATEGORIES = ['Work', 'Duty', 'Health', 'Social', 'Sport', 'Leisure'];
 const PRIORITIES = [
-    ['Low', 1],
-    ['Normal', 2],
-    ['High', 3],
-    ['Very high', 4],
+    ['Optional', 1],
+    ['Low', 2],
+    ['Normal', 3],
+    ['High', 4],
     ['Urgent', 5],
 ];
 const KIND_OPTIONS = [
@@ -22,7 +23,7 @@ const KIND_OPTIONS = [
     ['RECURRING_ROUTINE', 'Recurring routine', 'Medication, stretching, cleaning, walks, gym routines.'],
     ['PROJECT', 'Project with subtasks', 'A larger goal with optional subtasks.'],
 ];
-const STEPS = ['kind', 'basic', 'schedule', 'extras', 'advanced', 'summary'];
+const STEPS = ['kind', 'basic', 'schedule', 'extras', 'summary'];
 
 const DEFAULT_FORM = {
     kind: 'FLEXIBLE_TASK',
@@ -74,6 +75,7 @@ const DEFAULT_FORM = {
     customBufferMinutes: 10,
     projectPlanMode: 'EMPTY',
     subTasks: [],
+    advancedOpen: false,
 };
 
 const EMPTY_LOCATION = {
@@ -84,6 +86,7 @@ const EMPTY_LOCATION = {
 };
 
 function TaskCrudPage() {
+    const locationRoute = useLocation();
     const [form, setForm] = useState(DEFAULT_FORM);
     const [stepIndex, setStepIndex] = useState(0);
     const [editingTaskId, setEditingTaskId] = useState(null);
@@ -91,6 +94,7 @@ function TaskCrudPage() {
     const [saving, setSaving] = useState(false);
     const [location, setLocation] = useState(EMPTY_LOCATION);
     const [showLocationPicker, setShowLocationPicker] = useState(false);
+    const consumedQuickDraft = useRef(false);
 
     const step = STEPS[stepIndex];
     const taskPayload = useMemo(() => buildTaskPayload(form), [form]);
@@ -99,6 +103,21 @@ function TaskCrudPage() {
     useEffect(() => {
         fetchTasks();
     }, []);
+
+    useEffect(() => {
+        if (consumedQuickDraft.current || !locationRoute.state?.quickAddDraft) return;
+        consumedQuickDraft.current = true;
+        const next = formFromQuickAddDraft(locationRoute.state.quickAddDraft);
+        setForm(next);
+        setLocation({
+            addressText: next.addressText || '',
+            latitude: null,
+            longitude: null,
+            addressId: next.addressId || null,
+        });
+        setStepIndex(1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [locationRoute.state]);
 
     const setField = (field, value) => {
         setForm(prev => ({ ...prev, [field]: value }));
@@ -340,11 +359,9 @@ function TaskCrudPage() {
                         }}
                         showLocationPicker={showLocationPicker}
                         setShowLocationPicker={setShowLocationPicker}
+                        tasks={tasks}
+                        projects={projects}
                     />
-                )}
-
-                {step === 'advanced' && (
-                    <AdvancedStep form={form} setField={setField} tasks={tasks} projects={projects} />
                 )}
 
                 {step === 'summary' && (
@@ -469,7 +486,9 @@ function FixedScheduleStep({ form, setField }) {
                 When does it end?
                 <input type="datetime-local" value={form.fixedEndDateTime} onChange={event => setField('fixedEndDateTime', event.target.value)} />
             </label>
-            <RecurrenceFields form={form} setField={setField} />
+            <AdvancedOptionsDisclosure form={form} setField={setField}>
+                <RecurrenceFields form={form} setField={setField} />
+            </AdvancedOptionsDisclosure>
         </div>
     );
 }
@@ -479,9 +498,11 @@ function FlexibleScheduleStep({ form, setField }) {
         <div className={styles.formGrid}>
             <DeadlineField form={form} setField={setField} />
             <DurationField form={form} setField={setField} />
-            <EarliestStartField form={form} setField={setField} />
-            <LatestEndField form={form} setField={setField} />
-            <SplitFields form={form} setField={setField} />
+            <AdvancedOptionsDisclosure form={form} setField={setField}>
+                <EarliestStartField form={form} setField={setField} />
+                <LatestEndField form={form} setField={setField} />
+                <SplitFields form={form} setField={setField} />
+            </AdvancedOptionsDisclosure>
         </div>
     );
 }
@@ -606,12 +627,11 @@ function ProjectStep({ form, setField, addSuggestedSubtasks, addManualSubtask, u
     );
 }
 
-function ExtrasStep({ form, setField, location, setLocation, showLocationPicker, setShowLocationPicker }) {
+function ExtrasStep({ form, setField, location, setLocation, showLocationPicker, setShowLocationPicker, tasks = [], projects = [] }) {
     const fixedLike = form.kind === 'FIXED_EVENT' || (form.kind === 'RECURRING_ROUTINE' && form.routineMode === 'FIXED');
     return (
         <div className={styles.formGrid}>
             <ReminderField form={form} setField={setField} fixedLike={fixedLike} />
-            {!fixedLike && <RecurrenceFields form={form} setField={setField} />}
             <div className={styles.fullWidth}>
                 <span className={styles.fieldLabel}>{fixedLike ? 'Where does this happen?' : 'Should location or routing be considered?'}</span>
                 <div className={styles.choiceGridCompact}>
@@ -643,6 +663,30 @@ function ExtrasStep({ form, setField, location, setLocation, showLocationPicker,
             {form.locationMode === 'SAVED' && (
                 <div className={styles.fullWidth}>
                     <LocationPicker value={location} onChange={setLocation} />
+                </div>
+            )}
+            <AdvancedOptionsDisclosure form={form} setField={setField}>
+                {!fixedLike && form.kind !== 'RECURRING_ROUTINE' && <RecurrenceFields form={form} setField={setField} />}
+                <AdvancedStep form={form} setField={setField} tasks={tasks} projects={projects} />
+            </AdvancedOptionsDisclosure>
+        </div>
+    );
+}
+
+function AdvancedOptionsDisclosure({ form, setField, children }) {
+    return (
+        <div className={styles.advancedDisclosure}>
+            <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={() => setField('advancedOpen', !form.advancedOpen)}
+                aria-expanded={form.advancedOpen}
+            >
+                {form.advancedOpen ? 'Hide advanced options' : 'Advanced options'}
+            </button>
+            {form.advancedOpen && (
+                <div className={styles.advancedPanel}>
+                    {children}
                 </div>
             )}
         </div>
@@ -1288,6 +1332,7 @@ function formFromTask(task) {
         progressivePressure: task.progressive ? 'GENTLY' : 'NO',
         recurrencePattern: task.recurrencePattern || 'NONE',
         recurrenceMode: task.recurrencePattern && task.recurrencePattern !== 'NONE' ? 'CUSTOM' : 'NONE',
+        advancedOpen: hasAdvancedTaskValues(task),
         reminderMode: task.reminderDate ? 'CUSTOM' : 'NONE',
         customReminderDate: toInputValue(task.reminderDate),
         locationMode: task.addressText ? 'ADDRESS' : 'NO',
@@ -1295,6 +1340,45 @@ function formFromTask(task) {
         addressId: task.addressId || null,
         subTasks: task.subTasks || [],
     };
+}
+
+function formFromQuickAddDraft(draft = {}) {
+    const fixed = draft.taskType === 'FIXED';
+    const fixedStart = fixed
+        ? `${draft.fixedDate || toDateInput(new Date())}T${draft.fixedStartTime || '09:00'}`
+        : '';
+    const fixedEnd = fixedStart ? addMinutes(fixedStart, Number(draft.fixedDuration || draft.estimatedDuration || 60)) : '';
+    const dueDate = draft.dueDate ? `${draft.dueDate}T23:59` : '';
+    const recurrencePattern = draft.recurrencePattern || 'NONE';
+    return {
+        ...DEFAULT_FORM,
+        kind: fixed ? 'FIXED_EVENT' : 'FLEXIBLE_TASK',
+        title: draft.title || '',
+        category: canonicalizeCategory(draft.category || 'Work'),
+        priority: Number(draft.priority || 3),
+        dueMode: dueDate ? 'PICK' : 'NO_STRICT',
+        dueDate,
+        fixedStartDateTime: fixedStart,
+        fixedEndDateTime: fixedEnd,
+        fixedDurationMinutes: Number(draft.fixedDuration || draft.estimatedDuration || 60),
+        durationMode: Number(draft.estimatedDuration || draft.fixedDuration || 60),
+        customDurationMinutes: Number(draft.estimatedDuration || draft.fixedDuration || 60),
+        recurrencePattern,
+        recurrenceMode: recurrencePattern !== 'NONE' ? 'CUSTOM' : 'NONE',
+        locationMode: draft.addressText ? 'ADDRESS' : 'NO',
+        addressText: draft.addressText || '',
+        advancedOpen: recurrencePattern !== 'NONE',
+    };
+}
+
+function hasAdvancedTaskValues(task) {
+    return Boolean(
+        task.earliestStartDateTime ||
+        task.latestEndDateTime ||
+        task.canBeSeparated ||
+        task.progressive ||
+        (task.recurrencePattern && task.recurrencePattern !== 'NONE')
+    );
 }
 
 function quickSubtask(title, category, minutes) {
