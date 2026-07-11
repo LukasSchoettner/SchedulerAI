@@ -226,7 +226,7 @@ public class ZoneService {
         if (java.time.Duration.between(def.getStartTime(), def.getEndTime()).toMinutes() < 15) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Planning Window must be at least 15 minutes");
         }
-        if (blankToNull(def.getPrimaryCategory()) == null) {
+        if (blankToNull(def.getPrimaryCategory()) == null && !hasAllowedCategories(def)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Main focus is required");
         }
         String primary = blankToNull(def.getPrimaryCategory());
@@ -241,5 +241,9 @@ public class ZoneService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private boolean hasAllowedCategories(ZoneDefinition def) {
+        return def.getAllowedCategories() != null && !def.getAllowedCategories().isEmpty();
     }
 }

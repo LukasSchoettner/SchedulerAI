@@ -123,6 +123,49 @@ class ZoneServiceTest {
     }
 
     @Test
+    void addDefinitionAllowsLegacyAllowedCategoriesWithoutPrimaryCategory() {
+        ZoneConfiguration owned = config(10L, 42L, true);
+        ZoneDefinition mapped = new ZoneDefinition();
+        mapped.setTitle("Quiet hours - morning");
+        mapped.setDayMask(127);
+        mapped.setStartTime(LocalTime.of(0, 0));
+        mapped.setEndTime(LocalTime.of(8, 0));
+        mapped.setAllowedCategories(Set.of("__QUIET_OVERRIDE_ONLY__"));
+        mapped.setPriorityOverrideThreshold(5);
+        mapped.setBehaviorMode("STRICT");
+
+        ZoneDefinitionDTO dto = new ZoneDefinitionDTO(
+                null,
+                "Quiet hours - morning",
+                127,
+                LocalTime.of(0, 0),
+                LocalTime.of(8, 0),
+                Set.of("__QUIET_OVERRIDE_ONLY__"),
+                Set.of(),
+                5,
+                null,
+                Set.of(),
+                "STRICT",
+                null
+        );
+
+        when(configRepo.findById(10L)).thenReturn(Optional.of(owned));
+        when(defMapper.toDomain(dto)).thenReturn(mapped);
+        when(defRepo.save(mapped)).thenReturn(mapped);
+
+        zoneService.addDefinition(42L, 10L, dto);
+
+        ArgumentCaptor<ZoneDefinition> captor = ArgumentCaptor.forClass(ZoneDefinition.class);
+        verify(defRepo).save(captor.capture());
+        ZoneDefinition saved = captor.getValue();
+
+        assertThat(saved.getPrimaryCategory()).isNull();
+        assertThat(saved.getAllowedCategories()).containsExactly("__QUIET_OVERRIDE_ONLY__");
+        assertThat(saved.getPriorityOverrideThreshold()).isEqualTo(5);
+        assertThat(saved.getTargetPlacementMode()).isEqualTo("ALLOW_ELSEWHERE");
+    }
+
+    @Test
     void deleteConfigDeletesChildDefinitionsBeforeProfile() {
         ZoneConfiguration owned = config(10L, 42L, true);
         when(configRepo.findById(10L)).thenReturn(Optional.of(owned));
