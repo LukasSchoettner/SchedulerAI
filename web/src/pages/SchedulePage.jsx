@@ -9,6 +9,7 @@ import { BUILT_IN_CATEGORIES, canonicalizeCategory, getCategoryMeta } from '../l
 import useDayPlan from '../hooks/useDayPlan';
 import MorningBriefingPanel from '../components/day-plan/MorningBriefingPanel';
 import PlanStatusChip from '../components/day-plan/PlanStatusChip';
+import TaskDetailsDrawer from '../components/day-plan/TaskDetailsDrawer';
 import TodayPlanTimeline from '../components/day-plan/TodayPlanTimeline';
 import { useDayPlanActions } from '../components/layout/DayPlanActionsContext';
 import {
@@ -32,6 +33,10 @@ export default function SchedulePage() {
     const [activeCategories, setActiveCategories] = useState(() => new Set(BUILT_IN_CATEGORIES));
     const [pageView, setPageView] = useState(TODAY_VIEW);
     const [visibleDateRange, setVisibleDateRange] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [selectedTaskDetails, setSelectedTaskDetails] = useState(null);
+    const [detailsLoading, setDetailsLoading] = useState(false);
+    const [detailsError, setDetailsError] = useState('');
     const calendarRef = useRef(null);
     const regenerateTodayRef = useRef(null);
     const navigate = useNavigate();
@@ -113,6 +118,30 @@ export default function SchedulePage() {
     const keepFreeAndRefresh = async (item) => {
         await keepTimeFree(item);
         await refreshWeeklySchedule();
+    };
+
+    const openTaskDetails = async (item) => {
+        setSelectedItem(item);
+        setSelectedTaskDetails(null);
+        setDetailsError('');
+        setDetailsLoading(false);
+        if (!item?.taskId) return;
+        setDetailsLoading(true);
+        try {
+            const res = await api.get(`/tasks/${item.taskId}`);
+            setSelectedTaskDetails(res.data);
+        } catch {
+            setDetailsError('Full task notes could not be loaded.');
+        } finally {
+            setDetailsLoading(false);
+        }
+    };
+
+    const closeTaskDetails = () => {
+        setSelectedItem(null);
+        setSelectedTaskDetails(null);
+        setDetailsError('');
+        setDetailsLoading(false);
     };
 
     const showAllCategories = () => {
@@ -197,7 +226,7 @@ export default function SchedulePage() {
                             transitions={dayPlan.transitions}
                             empty="No tasks scheduled today. Add tasks or regenerate the plan."
                             onComplete={completeAndRefresh}
-                            onOpenDetails={() => navigate('/tasks')}
+                            onOpenDetails={openTaskDetails}
                             onKeepFree={keepFreeAndRefresh}
                             onSkip={skipItem}
                         />
@@ -262,6 +291,15 @@ export default function SchedulePage() {
                     </section>
                 </main>
             )}
+
+            <TaskDetailsDrawer
+                item={selectedItem}
+                taskDetails={selectedTaskDetails}
+                loading={detailsLoading}
+                error={detailsError}
+                onClose={closeTaskDetails}
+                onEdit={() => navigate('/tasks')}
+            />
         </div>
     );
 }

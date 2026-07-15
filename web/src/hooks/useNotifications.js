@@ -12,8 +12,9 @@ export default function useNotifications({ poll = true } = {}) {
         setError('');
         try {
             const res = await api.get('/notifications/unread');
-            setNotifications(res.data || []);
-            return res.data || [];
+            const visible = filterVisibleNotifications(res.data || []);
+            setNotifications(visible);
+            return visible;
         } catch (err) {
             setError('Notifications could not be loaded.');
             return [];
@@ -77,4 +78,17 @@ export default function useNotifications({ poll = true } = {}) {
         markAllRead,
         dismiss,
     }), [dismiss, dueNotifications, error, loadDue, loadUnread, loading, markAllRead, markRead, notifications]);
+}
+
+function filterVisibleNotifications(notifications) {
+    const now = new Date();
+    return notifications.filter(notification => isVisibleNotification(notification, now));
+}
+
+export function isVisibleNotification(notification, now = new Date()) {
+    if (notification?.type !== 'FOLLOW_UP_DUE') return true;
+    if (!notification.dueAt) return false;
+    const dueAt = new Date(notification.dueAt);
+    if (Number.isNaN(dueAt.getTime())) return false;
+    return dueAt <= now;
 }

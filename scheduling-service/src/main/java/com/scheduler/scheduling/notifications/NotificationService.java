@@ -165,9 +165,9 @@ public class NotificationService {
     }
 
     @Transactional
-    public void createFollowUpDue(Long customerId, Long dayPlanId, DayPlanItem item) {
-        if (item == null || item.getEndDateTime() == null) return;
-        createIfNotExists(
+    public Notification createFollowUpDue(Long customerId, Long dayPlanId, DayPlanItem item) {
+        if (item == null || item.getEndDateTime() == null) return null;
+        return createIfNotExists(
                 customerId,
                 NotificationType.FOLLOW_UP_DUE,
                 "Task follow-up",

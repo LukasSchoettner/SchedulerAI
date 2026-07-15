@@ -57,8 +57,43 @@ class RoutingFeasibilityServiceTest {
                 item(2L, "Gym", "2026-07-09T10:45:00", "2026-07-09T11:30:00", 2L, "Gym", DayPlanItemStatus.PLANNED)
         )).getFirst();
 
+        assertThat(transition.warningCode()).isNotEqualTo(TravelWarningCode.SAME_LOCATION);
         assertThat(transition.warningCode()).isEqualTo(TravelWarningCode.FEASIBLE);
         assertThat(transition.estimatedTravelMinutes()).isEqualTo(30);
+    }
+
+    @Test
+    void differentKnownAddressTextNeverCreatesSameLocation() {
+        var transition = service.transitionsFor(List.of(
+                item(1L, "Home", "2026-07-09T09:00:00", "2026-07-09T10:00:00", null, "Home", DayPlanItemStatus.PLANNED),
+                item(2L, "Gym", "2026-07-09T10:45:00", "2026-07-09T11:30:00", null, "Gym", DayPlanItemStatus.PLANNED)
+        )).getFirst();
+
+        assertThat(transition.warningCode()).isNotEqualTo(TravelWarningCode.SAME_LOCATION);
+        assertThat(transition.estimatedTravelMinutes()).isEqualTo(30);
+    }
+
+    @Test
+    void differentKnownLocationsWithoutEstimateCreateUnknownTravelWarning() {
+        TravelAwarePlacementService unknownEstimator = new TravelAwarePlacementService() {
+            @Override
+            public TravelTimeEstimate estimate(LocationSnapshot from, LocationSnapshot to) {
+                if (!hasLocation(from) || !hasLocation(to)) return TravelTimeEstimate.unknown();
+                if (sameLocation(from, to)) return TravelTimeEstimate.known(0);
+                return TravelTimeEstimate.unknown();
+            }
+        };
+        RoutingFeasibilityService serviceWithoutEstimate = new RoutingFeasibilityService(unknownEstimator);
+
+        var transition = serviceWithoutEstimate.transitionsFor(List.of(
+                item(1L, "Home", "2026-07-09T09:00:00", "2026-07-09T10:00:00", 1L, "Home", DayPlanItemStatus.PLANNED),
+                item(2L, "Gym", "2026-07-09T10:45:00", "2026-07-09T11:30:00", 2L, "Gym", DayPlanItemStatus.PLANNED)
+        )).getFirst();
+
+        assertThat(transition.warningCode()).isEqualTo(TravelWarningCode.UNKNOWN_TRAVEL_TIME);
+        assertThat(transition.estimatedTravelMinutes()).isNull();
+        assertThat(transition.feasible()).isNull();
+        assertThat(transition.warningMessage()).contains("unknown");
     }
 
     @Test

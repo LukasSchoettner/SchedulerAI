@@ -75,22 +75,29 @@ public class RoutingFeasibilityService {
                     "Same location: no travel time needed.");
         }
 
-        int defaultTravel = TravelAwarePlacementService.DEFAULT_TRAVEL_MINUTES;
-        if (availableMinutes < defaultTravel) {
-            return response(from, to, availableMinutes, defaultTravel, false,
+        TravelTimeEstimate estimate = travelAwarePlacementService.estimate(fromLocation, toLocation);
+        if (!estimate.known()) {
+            return response(from, to, availableMinutes, null, null,
+                    TravelWarningCode.UNKNOWN_TRAVEL_TIME,
+                    "Travel time unknown: route or travel estimate could not be calculated.");
+        }
+
+        int estimatedTravel = estimate.minutes();
+        if (availableMinutes < estimatedTravel) {
+            return response(from, to, availableMinutes, estimatedTravel, false,
                     TravelWarningCode.INSUFFICIENT_TRAVEL_TIME,
-                    "Travel may be too tight: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+                    "Travel may be too tight: " + availableMinutes + " min available, about " + estimatedTravel + " min needed.");
         }
 
-        if (availableMinutes - defaultTravel <= TIGHT_TRAVEL_THRESHOLD_MINUTES) {
-            return response(from, to, availableMinutes, defaultTravel, true,
+        if (availableMinutes - estimatedTravel <= TIGHT_TRAVEL_THRESHOLD_MINUTES) {
+            return response(from, to, availableMinutes, estimatedTravel, true,
                     TravelWarningCode.TIGHT_TRAVEL_TIME,
-                    "Travel is tight: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+                    "Travel is tight: " + availableMinutes + " min available, about " + estimatedTravel + " min needed.");
         }
 
-        return response(from, to, availableMinutes, defaultTravel, true,
+        return response(from, to, availableMinutes, estimatedTravel, true,
                 TravelWarningCode.FEASIBLE,
-                "Travel OK: " + availableMinutes + " min available, about " + defaultTravel + " min needed.");
+                "Travel OK: " + availableMinutes + " min available, about " + estimatedTravel + " min needed.");
     }
 
     private Integer estimateTravelMinutes(DayPlanItem from, DayPlanItem to) {

@@ -11,4 +11,15 @@ describe('SchedulePage source', () => {
     expect(source).toContain('onRegenerate={regenerateAndRefresh}');
     expect(source).toContain('onConfirm={confirmDayPlan}');
   });
+
+  test('opens timeline task details locally before offering edit navigation', () => {
+    const source = readFileSync(join(process.cwd(), 'src/pages/SchedulePage.jsx'), 'utf8');
+
+    expect(source).toContain('const openTaskDetails = async (item) =>');
+    expect(source).toContain('api.get(`/tasks/${item.taskId}`)');
+    expect(source).toContain('onOpenDetails={openTaskDetails}');
+    expect(source).toContain('<TaskDetailsDrawer');
+    expect(source).toContain("onEdit={() => navigate('/tasks')}");
+    expect(source).not.toContain("onOpenDetails={() => navigate('/tasks')}");
+  });
 });

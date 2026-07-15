@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import NotificationCenter from './NotificationCenter';
 import api from '../lib/api';
+import { isVisibleNotification } from '../hooks/useNotifications';
 
 const navigate = vi.fn();
 
@@ -28,7 +29,7 @@ const unreadNotifications = [
         type: 'FOLLOW_UP_DUE',
         title: 'Task follow-up',
         message: 'Did you finish "Project report"?',
-        dueAt: '2026-07-08T11:00:00',
+        dueAt: '2000-01-01T11:00:00',
         status: 'UNREAD',
     },
 ];
@@ -95,5 +96,37 @@ describe('NotificationCenter', () => {
 
         expect(api.put).toHaveBeenCalledWith('/notifications/1/read');
         expect(navigate).toHaveBeenCalledWith('/schedule');
+    });
+
+    test('future follow-up notification is hidden until due', async () => {
+        api.get.mockImplementation((url) => {
+            if (url === '/notifications/unread') {
+                return Promise.resolve({
+                    data: [{
+                        ...unreadNotifications[0],
+                        dueAt: '2999-07-08T11:00:00',
+                    }],
+                });
+            }
+            if (url === '/notifications/due') return Promise.resolve({ data: [] });
+            return Promise.resolve({ data: [] });
+        });
+
+        render(<NotificationCenter />, { wrapper: MemoryRouter });
+
+        await waitFor(() => expect(api.get).toHaveBeenCalledWith('/notifications/unread'));
+        expect(screen.queryByText('1')).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: /Notifications/i }));
+        expect(screen.getByText(/No unread notifications/i)).toBeInTheDocument();
+        expect(screen.queryByText('Task follow-up')).not.toBeInTheDocument();
+    });
+
+    test('follow-up visibility uses the client current time', () => {
+        const now = new Date('2026-07-08T10:00:00');
+
+        expect(isVisibleNotification({ type: 'FOLLOW_UP_DUE', dueAt: '2026-07-08T10:01:00' }, now)).toBe(false);
+        expect(isVisibleNotification({ type: 'FOLLOW_UP_DUE', dueAt: '2026-07-08T10:00:00' }, now)).toBe(true);
+        expect(isVisibleNotification({ type: 'TASK_STARTING_SOON', dueAt: '2026-07-08T10:01:00' }, now)).toBe(true);
     });
 });

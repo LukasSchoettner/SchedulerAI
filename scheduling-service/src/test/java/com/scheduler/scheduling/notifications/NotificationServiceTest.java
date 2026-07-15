@@ -1,5 +1,6 @@
 package com.scheduler.scheduling.notifications;
 
+import com.scheduler.scheduling.models.DayPlanItem;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 
@@ -62,6 +63,27 @@ class NotificationServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().type()).isEqualTo(NotificationType.TASK_STARTING_SOON);
+    }
+
+    @Test
+    void followUpDueUsesDayPlanItemEndTimeAsDueAt() {
+        DayPlanItem item = new DayPlanItem();
+        item.setId(100L);
+        item.setTaskId(44L);
+        item.setTitleSnapshot("Project report");
+        item.setStartDateTime(LocalDateTime.of(2026, 7, 8, 11, 0));
+        item.setEndDateTime(LocalDateTime.of(2026, 7, 8, 12, 15));
+        when(repository.findByCustomerIdAndStatusAndType(
+                123L,
+                NotificationStatus.UNREAD,
+                NotificationType.FOLLOW_UP_DUE
+        )).thenReturn(List.of());
+        when(repository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Notification notification = service.createFollowUpDue(123L, 10L, item);
+
+        assertThat(notification.getDueAt()).isEqualTo(item.getEndDateTime());
+        assertThat(notification.getCreatedAt()).isEqualTo(NOW);
     }
 
     @Test

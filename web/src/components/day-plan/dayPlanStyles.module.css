@@ -401,6 +401,92 @@
   background: #f8fafc;
 }
 
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  justify-items: end;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.detailsDrawer {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  width: min(28rem, 100vw);
+  height: 100%;
+  overflow-y: auto;
+  padding: 1rem;
+  background: #ffffff;
+  box-shadow: -18px 0 38px rgba(15, 23, 42, 0.22);
+}
+
+.detailsHeader,
+.detailsActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.detailsHeader h3 {
+  margin: 0.15rem 0 0;
+  color: #1f2933;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.detailsGrid div {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid #edf1f4;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.detailsGrid dt {
+  color: #607d8b;
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detailsGrid dd {
+  margin: 0.15rem 0 0;
+  color: #1f2933;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.detailsNotes {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border: 1px solid #edf1f4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.detailsNotes h4,
+.detailsNotes p {
+  margin: 0;
+}
+
+.detailsNotes p {
+  color: #405261;
+  overflow-wrap: anywhere;
+}
+
+.detailsError {
+  color: #9a3412 !important;
+}
+
 @media (max-width: 760px) {
   .briefingTop,
   .compactBanner,
@@ -434,16 +520,36 @@
   .taskActions {
     justify-content: flex-start;
   }
+
+  .drawerBackdrop {
+    align-items: end;
+    justify-items: stretch;
+  }
+
+  .detailsDrawer {
+    width: 100%;
+    max-height: 88vh;
+    height: auto;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
 }
 
 @media (max-width: 540px) {
   .briefingMetrics,
-  .previewList li {
+  .previewList li,
+  .detailsGrid {
     grid-template-columns: 1fr;
   }
 
   .moreMenuPanel {
     left: 0;
     right: auto;
+  }
+
+  .detailsHeader,
+  .detailsActions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
