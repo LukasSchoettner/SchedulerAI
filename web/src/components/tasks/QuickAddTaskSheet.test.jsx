@@ -204,6 +204,24 @@ describe('QuickAddTaskSheet', () => {
     expect(screen.getByText('Study session')).toBeInTheDocument();
   });
 
+  test('template with unknown icon uses safe category fallback', async () => {
+    api.get.mockResolvedValue({
+      data: [{
+        id: 11,
+        title: 'Mystery chore',
+        category: 'Duty',
+        defaultType: 'FLEXIBLE',
+        defaultEstimatedDurationMinutes: 30,
+        defaultPriority: 3,
+        icon: 'not_a_supported_icon',
+      }],
+    });
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText('Admin')).toBeInTheDocument();
+    expect(screen.queryByText('not a supported icon')).not.toBeInTheDocument();
+  });
+
   test('Add and regenerate today sends explicit dueDate and scheduleToday', async () => {
     const user = userEvent.setup();
     const regenerateToday = vi.fn().mockResolvedValue({});

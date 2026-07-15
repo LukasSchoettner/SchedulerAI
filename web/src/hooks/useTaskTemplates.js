@@ -130,7 +130,7 @@ export const TEMPLATE_ICON_SYMBOLS = {
 };
 
 export function templateIcon(template) {
-  if (template?.icon) return template.icon;
+  if (template?.icon && TEMPLATE_ICON_SYMBOLS[template.icon]) return template.icon;
   const category = String(template?.category || '').toLowerCase();
   if (category === 'duty') return 'admin';
   if (category === 'health') return 'health';
@@ -142,5 +142,5 @@ export function templateIcon(template) {
 
 export function templateIconText(template) {
   const icon = templateIcon(template);
-  return TEMPLATE_ICON_SYMBOLS[icon] || icon.replaceAll('_', ' ');
+  return TEMPLATE_ICON_SYMBOLS[icon] || TEMPLATE_ICON_SYMBOLS.home;
 }

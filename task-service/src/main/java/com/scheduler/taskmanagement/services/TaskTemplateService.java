@@ -20,10 +20,25 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Set;
 import java.util.List;
 
 @Service
 public class TaskTemplateService {
+
+    private static final Set<String> SUPPORTED_ICON_IDENTIFIERS = Set.of(
+            "shopping_cart",
+            "laundry",
+            "medication",
+            "work",
+            "study",
+            "walk",
+            "home",
+            "health",
+            "admin",
+            "email",
+            "phone"
+    );
 
     private final TaskTemplateRepository templateRepository;
     private final TaskService taskService;
@@ -57,21 +72,25 @@ public class TaskTemplateService {
 
     @Transactional
     public TaskTemplateResponse update(Long id, TaskTemplateRequest request, Long customerId) {
-        TaskTemplate template = findOwned(id, customerId);
+        TaskTemplate template = findActiveOwned(id, customerId);
         applyRequest(template, request, false);
         return toResponse(templateRepository.save(template));
     }
 
     @Transactional
     public void archive(Long id, Long customerId) {
-        TaskTemplate template = findOwned(id, customerId);
+        TaskTemplate template = templateRepository.findByIdAndCustomerId(id, customerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task template not found"));
+        if (template.isArchived()) {
+            return;
+        }
         template.setArchived(true);
         templateRepository.save(template);
     }
 
     @Transactional
     public TaskDTO instantiate(Long id, TaskTemplateInstantiateRequest request, Long customerId) {
-        TaskTemplate template = findOwned(id, customerId);
+        TaskTemplate template = findActiveOwned(id, customerId);
         TaskDTO task = buildTask(template, request == null ? new TaskTemplateInstantiateRequest() : request);
         TaskDTO created = taskService.createTask(task, customerId);
         template.setUsageCount(template.getUsageCount() + 1);
@@ -104,6 +123,11 @@ public class TaskTemplateService {
 
     private TaskTemplate findOwned(Long id, Long customerId) {
         return templateRepository.findByIdAndCustomerId(id, customerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task template not found"));
+    }
+
+    private TaskTemplate findActiveOwned(Long id, Long customerId) {
+        return templateRepository.findByIdAndCustomerIdAndArchivedFalse(id, customerId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task template not found"));
     }
 
@@ -144,7 +168,7 @@ public class TaskTemplateService {
             template.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
         }
         if (request.getIcon() != null || creating) {
-            template.setIcon(cleanText(request.getIcon()));
+            template.setIcon(supportedIconOrNull(request.getIcon()));
         }
     }
 
@@ -241,6 +265,11 @@ public class TaskTemplateService {
 
     private static TaskType supportedTemplateType(TaskType value) {
         return value == TaskType.FIXED ? TaskType.FIXED : TaskType.FLEXIBLE;
+    }
+
+    private static String supportedIconOrNull(String value) {
+        String icon = cleanText(value);
+        return icon != null && SUPPORTED_ICON_IDENTIFIERS.contains(icon) ? icon : null;
     }
 
     private static int clamp(Integer value, int min, int max, int fallback) {

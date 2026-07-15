@@ -13,4 +13,6 @@ public interface TaskTemplateRepository extends JpaRepository<TaskTemplate, Long
     List<TaskTemplate> findByCustomerIdAndArchivedFalseOrderByDisplayOrderAscLastUsedAtDescCreatedAtAsc(Long customerId);
 
     Optional<TaskTemplate> findByIdAndCustomerId(Long id, Long customerId);
+
+    Optional<TaskTemplate> findByIdAndCustomerIdAndArchivedFalse(Long id, Long customerId);
 }

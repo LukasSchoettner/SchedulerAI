@@ -64,7 +64,7 @@ class TaskTemplateServiceTest {
         template.setDescription("Use gentle cycle");
         template.setAddressId(12L);
         template.setAddressText("Home");
-        when(repository.findByIdAndCustomerId(1L, 77L)).thenReturn(Optional.of(template));
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.of(template));
         when(taskService.createTask(any(TaskDTO.class), eq(77L))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskTemplateInstantiateRequest request = new TaskTemplateInstantiateRequest();
@@ -88,7 +88,7 @@ class TaskTemplateServiceTest {
     void failedFixedInstantiationDoesNotUpdateUsageMetadata() {
         TaskTemplate template = template(1L, "Doctor");
         template.setDefaultType(TaskType.FIXED);
-        when(repository.findByIdAndCustomerId(1L, 77L)).thenReturn(Optional.of(template));
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.of(template));
 
         assertThatThrownBy(() -> service.instantiate(1L, new TaskTemplateInstantiateRequest(), 77L))
                 .isInstanceOf(ResponseStatusException.class);
@@ -103,7 +103,7 @@ class TaskTemplateServiceTest {
     void fixedInstantiationWithTimingCreatesFixedTask() {
         TaskTemplate template = template(1L, "Doctor");
         template.setDefaultType(TaskType.FIXED);
-        when(repository.findByIdAndCustomerId(1L, 77L)).thenReturn(Optional.of(template));
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.of(template));
         when(taskService.createTask(any(TaskDTO.class), eq(77L))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskTemplateInstantiateRequest request = new TaskTemplateInstantiateRequest();
@@ -125,7 +125,7 @@ class TaskTemplateServiceTest {
         TaskTemplate template = template(1L, "Old");
         template.setUsageCount(9);
         template.setLastUsedAt(LocalDateTime.of(2026, 7, 1, 10, 0));
-        when(repository.findByIdAndCustomerId(1L, 77L)).thenReturn(Optional.of(template));
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.of(template));
         when(repository.save(any(TaskTemplate.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TaskTemplateRequest request = new TaskTemplateRequest();
@@ -134,6 +134,54 @@ class TaskTemplateServiceTest {
 
         assertThat(template.getUsageCount()).isEqualTo(9);
         assertThat(template.getLastUsedAt()).isEqualTo(LocalDateTime.of(2026, 7, 1, 10, 0));
+    }
+
+    @Test
+    void archivedTemplateCannotBeInstantiated() {
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.instantiate(1L, new TaskTemplateInstantiateRequest(), 77L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+
+        verify(taskService, never()).createTask(any(), any());
+    }
+
+    @Test
+    void archivedTemplateCannotBeUpdated() {
+        when(repository.findByIdAndCustomerIdAndArchivedFalse(1L, 77L)).thenReturn(Optional.empty());
+
+        TaskTemplateRequest request = new TaskTemplateRequest();
+        request.setTitle("Updated");
+
+        assertThatThrownBy(() -> service.update(1L, request, 77L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void archivedTemplateRemainsAbsentFromListing() {
+        when(repository.findByCustomerIdAndArchivedFalseOrderByDisplayOrderAscLastUsedAtDescCreatedAtAsc(77L))
+                .thenReturn(List.of());
+
+        assertThat(service.list(77L)).isEmpty();
+
+        verify(repository).findByCustomerIdAndArchivedFalseOrderByDisplayOrderAscLastUsedAtDescCreatedAtAsc(77L);
+    }
+
+    @Test
+    void unknownIconIsStoredAsNull() {
+        TaskTemplateRequest request = new TaskTemplateRequest();
+        request.setTitle("Suspicious");
+        request.setCategory("Duty");
+        request.setIcon("raw-html-ish");
+        when(repository.save(any(TaskTemplate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.create(request, 77L);
+
+        assertThat(response.getIcon()).isNull();
     }
 
     private TaskTemplate template(Long id, String title) {
