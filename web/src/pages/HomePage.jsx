@@ -49,7 +49,7 @@ export default function HomePage() {
         return () => window.clearInterval(interval);
     }, [dayPlanState.activeItems]);
 
-    regenerateTodayRef.current = () => dayPlanState.regenerateDayPlan(new Date());
+    regenerateTodayRef.current = () => replanFromNow();
 
     useEffect(() => {
         setActions({

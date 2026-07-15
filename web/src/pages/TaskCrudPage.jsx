@@ -94,7 +94,7 @@ function TaskCrudPage() {
     const [saving, setSaving] = useState(false);
     const [location, setLocation] = useState(EMPTY_LOCATION);
     const [showLocationPicker, setShowLocationPicker] = useState(false);
-    const consumedQuickDraft = useRef(false);
+    const consumedQuickDraftKey = useRef('');
 
     const step = STEPS[stepIndex];
     const taskPayload = useMemo(() => buildTaskPayload(form), [form]);
@@ -105,8 +105,8 @@ function TaskCrudPage() {
     }, []);
 
     useEffect(() => {
-        if (consumedQuickDraft.current || !locationRoute.state?.quickAddDraft) return;
-        consumedQuickDraft.current = true;
+        if (!locationRoute.state?.quickAddDraft || consumedQuickDraftKey.current === locationRoute.key) return;
+        consumedQuickDraftKey.current = locationRoute.key;
         const next = formFromQuickAddDraft(locationRoute.state.quickAddDraft);
         setForm(next);
         setLocation({

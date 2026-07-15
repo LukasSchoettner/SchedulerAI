@@ -61,8 +61,6 @@ export default function SchedulePage() {
     ];
     const visibleEvents = calendarEvents.filter(event => activeCategories.has(event.extendedProps.category));
     const { slotMinTime, slotMaxTime, firstTaskLabel, visibleRangeLabel } = computeVisibleTimeRange(calendarEvents, visibleDateRange);
-    const planNeedsConfirmation = dayPlan && (dayPlan.status !== 'CONFIRMED' || dayPlan.changedFromConfirmed);
-
     useEffect(() => {
         refreshWeeklySchedule();
     }, []);
@@ -158,11 +156,6 @@ export default function SchedulePage() {
                             Week
                         </button>
                     </div>
-                    {planNeedsConfirmation && (
-                        <button type="button" className={styles.primaryBtn} onClick={confirmDayPlan} disabled={loading}>
-                            Confirm plan
-                        </button>
-                    )}
                 </div>
             </header>
 
