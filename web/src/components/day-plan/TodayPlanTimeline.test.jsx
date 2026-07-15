@@ -44,6 +44,20 @@ describe('TodayPlanTimeline travel notices', () => {
         expect(screen.getByText(/Travel OK/i)).toBeInTheDocument();
     });
 
+    test('unknown travel fallback does not imply same location', () => {
+        render(
+            <TodayPlanTimeline
+                items={items()}
+                transitions={[transition('', 'UNKNOWN_TRAVEL_TIME', 20, null)]}
+                onComplete={vi.fn()}
+                onOpenDetails={vi.fn()}
+            />
+        );
+
+        expect(screen.getByText(/Travel time unknown/i)).toBeInTheDocument();
+        expect(screen.queryByText(/Same location/i)).not.toBeInTheDocument();
+    });
+
     test('empty or missing transitions render no travel notice and do not crash', () => {
         const { rerender } = render(
             <TodayPlanTimeline

@@ -1,5 +1,6 @@
 package com.scheduler.scheduling.services;
 
+import com.scheduler.commoncode.dto.FixedTaskDTO;
 import com.scheduler.commoncode.dto.FlexibleTaskDTO;
 import com.scheduler.commoncode.enums.TaskNature;
 import com.scheduler.commoncode.enums.TaskStatus;
@@ -106,6 +107,34 @@ class DayPlanServiceTest {
                 eq(null),
                 eq(null)
         );
+    }
+
+    @Test
+    void generatedFixedDayPlanItemSnapshotsLocation() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.empty());
+        FixedTaskDTO fixed = new FixedTaskDTO();
+        fixed.setId(7L);
+        fixed.setTitle("Doctor appointment");
+        fixed.setCategory("Health");
+        fixed.setType(TaskType.FIXED);
+        fixed.setStatus(TaskStatus.PENDING);
+        fixed.setPriority(4);
+        fixed.setRecurrencePattern("NONE");
+        fixed.setAddressId(88L);
+        fixed.setAddressText("Doctor office");
+        Schedule schedule = new Schedule();
+        schedule.setScheduledTasks(new ArrayList<>(List.of(
+                new ScheduledTask(fixed, slot(date.atTime(9, 0), date.atTime(9, 30)))
+        )));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule);
+
+        var response = service.generatePlan(123L, date);
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().taskTypeSnapshot()).isEqualTo(TaskType.FIXED.name());
+        assertThat(response.items().getFirst().addressIdSnapshot()).isEqualTo(88L);
+        assertThat(response.items().getFirst().addressTextSnapshot()).isEqualTo("Doctor office");
     }
 
     @Test

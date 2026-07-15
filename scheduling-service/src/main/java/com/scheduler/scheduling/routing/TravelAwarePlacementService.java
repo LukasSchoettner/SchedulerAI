@@ -91,17 +91,23 @@ public class TravelAwarePlacementService {
 
     boolean hasLocation(LocationSnapshot location) {
         return location != null
-                && (location.addressId() != null || !normalize(location.addressText()).isBlank());
+                && (validAddressId(location.addressId()) || !normalize(location.addressText()).isBlank());
     }
 
     boolean sameLocation(LocationSnapshot from, LocationSnapshot to) {
         if (from == null || to == null) return false;
-        if (from.addressId() != null && from.addressId().equals(to.addressId())) {
-            return true;
+        Long fromAddressId = validAddressId(from.addressId()) ? from.addressId() : null;
+        Long toAddressId = validAddressId(to.addressId()) ? to.addressId() : null;
+        if (fromAddressId != null || toAddressId != null) {
+            return fromAddressId != null && fromAddressId.equals(toAddressId);
         }
         String fromText = normalize(from.addressText());
         String toText = normalize(to.addressText());
         return !fromText.isBlank() && fromText.equals(toText);
+    }
+
+    private boolean validAddressId(Long addressId) {
+        return addressId != null && addressId > 0;
     }
 
     String normalize(String value) {

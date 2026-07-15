@@ -38,6 +38,29 @@ class RoutingFeasibilityServiceTest {
     }
 
     @Test
+    void sameAddressTextWithDifferentAddressIdsIsNotSameLocation() {
+        var transition = service.transitionsFor(List.of(
+                item(1L, "Work", "2026-07-09T09:00:00", "2026-07-09T10:00:00", 11L, "Shared label", DayPlanItemStatus.PLANNED),
+                item(2L, "Gym", "2026-07-09T10:45:00", "2026-07-09T11:30:00", 12L, "Shared label", DayPlanItemStatus.PLANNED)
+        )).getFirst();
+
+        assertThat(transition.warningCode()).isNotEqualTo(TravelWarningCode.SAME_LOCATION);
+        assertThat(transition.estimatedTravelMinutes()).isEqualTo(30);
+    }
+
+    @Test
+    void zeroAddressIdIsTreatedAsMissingForLegacySnapshots() {
+        var transition = service.transitionsFor(List.of(
+                item(1L, "Task A", "2026-07-09T09:00:00", "2026-07-09T10:00:00", 0L, null, DayPlanItemStatus.PLANNED),
+                item(2L, "Task B", "2026-07-09T10:45:00", "2026-07-09T11:30:00", 0L, null, DayPlanItemStatus.PLANNED)
+        )).getFirst();
+
+        assertThat(transition.warningCode()).isEqualTo(TravelWarningCode.MISSING_LOCATION);
+        assertThat(transition.warningCode()).isNotEqualTo(TravelWarningCode.SAME_LOCATION);
+        assertThat(transition.estimatedTravelMinutes()).isNull();
+    }
+
+    @Test
     void sameLocationOverlapIsStillInsufficientTravelTime() {
         var transition = service.transitionsFor(List.of(
                 item(1L, "Work", "2026-07-09T09:00:00", "2026-07-09T10:30:00", 12L, null, DayPlanItemStatus.PLANNED),
@@ -106,6 +129,17 @@ class RoutingFeasibilityServiceTest {
         assertThat(transition.warningCode()).isEqualTo(TravelWarningCode.MISSING_LOCATION);
         assertThat(transition.estimatedTravelMinutes()).isNull();
         assertThat(transition.feasible()).isNull();
+    }
+
+    @Test
+    void oneMissingAddressIdWithKnownTextNeverCreatesSameLocation() {
+        var transition = service.transitionsFor(List.of(
+                item(1L, "Home", "2026-07-09T09:00:00", "2026-07-09T10:00:00", 1L, "Home", DayPlanItemStatus.PLANNED),
+                item(2L, "Task", "2026-07-09T10:45:00", "2026-07-09T11:30:00", null, "Home", DayPlanItemStatus.PLANNED)
+        )).getFirst();
+
+        assertThat(transition.warningCode()).isNotEqualTo(TravelWarningCode.SAME_LOCATION);
+        assertThat(transition.estimatedTravelMinutes()).isEqualTo(30);
     }
 
     @Test

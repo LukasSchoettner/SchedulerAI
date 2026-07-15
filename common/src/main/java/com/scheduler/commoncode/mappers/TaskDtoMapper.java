@@ -11,6 +11,7 @@ import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskProto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Named;
 import org.mapstruct.ValueMapping;
 import org.mapstruct.ValueMappings;
 
@@ -32,7 +33,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(create.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     FixedTaskDTO toFixedTaskDTO(TaskCreate create);
 
@@ -56,7 +57,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(create.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     FlexibleTaskDTO toFlexibleTaskDTO(TaskCreate create);
 
@@ -72,7 +73,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(create.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     ProjectTaskDTO toProjectTaskDTO(TaskCreate create);
 
@@ -101,7 +102,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(proto.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     FixedTaskDTO toFixedTaskDTO(TaskProto proto);
 
@@ -125,7 +126,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(proto.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     FlexibleTaskDTO toFlexibleTaskDTO(TaskProto proto);
 
@@ -141,7 +142,7 @@ public interface TaskDtoMapper {
     @Mapping(target = "status",               source = "status")
     @Mapping(target = "type",                 expression = "java(TaskType.valueOf(proto.getType().name()))")
     // NEW:
-    @Mapping(target = "addressId",            source = "addressId")
+    @Mapping(target = "addressId",            source = "addressId", qualifiedByName = "positiveAddressId")
     @Mapping(target = "addressText",          source = "addressText")
     ProjectTaskDTO toProjectTaskDTO(TaskProto proto);
 
@@ -172,4 +173,9 @@ public interface TaskDtoMapper {
             @ValueMapping(source = "UNRECOGNIZED", target = "FIXED_ESTIMATE")
     })
     TaskNature toTaskNature(com.scheduler.taskmanagement.grpc.TaskNature grpcNature);
+
+    @Named("positiveAddressId")
+    default Long positiveAddressId(long addressId) {
+        return addressId > 0 ? addressId : null;
+    }
 }
