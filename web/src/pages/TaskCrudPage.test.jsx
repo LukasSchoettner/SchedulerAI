@@ -19,6 +19,8 @@ describe('TaskCrudPage full task creation flow', () => {
   beforeEach(() => {
     window.scrollTo = vi.fn();
     api.get.mockResolvedValue({ data: [] });
+    api.post.mockResolvedValue({ data: { id: 99 } });
+    api.put.mockResolvedValue({ data: { id: 99 } });
   });
 
   test('still renders the normal task wizard and save action', async () => {
@@ -69,6 +71,44 @@ describe('TaskCrudPage full task creation flow', () => {
     expect(await screen.findByDisplayValue('Draft appointment')).toBeInTheDocument();
     expect(screen.getByLabelText(/Which area/i)).toHaveDisplayValue('Health');
     expect(screen.getByLabelText(/How important/i)).toHaveDisplayValue('Normal');
+  });
+
+  test('template management section renders and saves a starter suggestion with icon', async () => {
+    const user = userEvent.setup();
+    renderTaskPage();
+
+    expect(await screen.findByText('Task templates')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Cart Buying groceries/i }));
+
+    expect(screen.getByDisplayValue('Buying groceries')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('shopping_cart')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create template' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/tasks/templates', expect.objectContaining({
+      title: 'Buying groceries',
+      category: 'Duty',
+      defaultType: 'FLEXIBLE',
+      defaultPriority: 3,
+      defaultEstimatedDurationMinutes: 45,
+      icon: 'shopping_cart',
+    })));
+  });
+
+  test('saved template card shows stored icon and can be archived', async () => {
+    const user = userEvent.setup();
+    api.get.mockImplementation((url) => {
+      if (url === '/tasks/templates') {
+        return Promise.resolve({ data: [{ id: 4, title: 'Laundry', category: 'Duty', defaultType: 'FLEXIBLE', defaultEstimatedDurationMinutes: 45, icon: 'laundry', usageCount: 2 }] });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    renderTaskPage();
+
+    expect(await screen.findByText('Wash')).toBeInTheDocument();
+    expect(screen.getByText('Laundry')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/tasks/templates/4'));
   });
 });
 

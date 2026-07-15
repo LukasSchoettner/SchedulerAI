@@ -265,6 +265,98 @@ button:disabled {
   margin-top: 2rem;
 }
 
+.templateSection {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.templateHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.templateLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 1rem;
+}
+
+.templatePanel {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.templatePanel h4 {
+  margin: 0;
+}
+
+.templateSuggestionGrid,
+.templateCards {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.templateSuggestionGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.templateSuggestionGrid button {
+  min-height: 2.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17202a;
+  padding: 0.55rem 0.7rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.templateCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.templateIcon {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  margin: 0 0.45rem 0.25rem 0;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #0b3d73;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.templateError {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 700;
+}
+
 .taskList {
   list-style: none;
   padding: 0;
@@ -327,13 +419,21 @@ button:disabled {
 
   .formGrid,
   .summaryRow,
-  .subtaskRow {
+  .subtaskRow,
+  .templateLayout,
+  .templateSuggestionGrid {
     grid-template-columns: 1fr;
   }
 
   .wizardActions,
-  .taskActions {
+  .taskActions,
+  .templateCard {
     justify-content: stretch;
+  }
+
+  .templateCard {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .advancedDisclosure > button,

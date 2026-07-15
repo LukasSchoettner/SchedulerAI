@@ -5,6 +5,7 @@ import {
     canonicalizeCategory,
     getCategoryMeta,
 } from '../lib/categories';
+import useTaskTemplates, { templateIconText } from '../hooks/useTaskTemplates';
 import styles from './TaskCrudPage.module.css';
 import LocationPicker from '../components/LocationPicker';
 
@@ -24,6 +25,20 @@ const KIND_OPTIONS = [
     ['PROJECT', 'Project with subtasks', 'A larger goal with optional subtasks.'],
 ];
 const STEPS = ['kind', 'basic', 'schedule', 'extras', 'summary'];
+const STARTER_TEMPLATES = [
+    { title: 'Buying groceries', category: 'Duty', defaultEstimatedDurationMinutes: 45, icon: 'shopping_cart' },
+    { title: 'Laundry', category: 'Duty', defaultEstimatedDurationMinutes: 45, icon: 'laundry' },
+    { title: 'Clean kitchen', category: 'Duty', defaultEstimatedDurationMinutes: 30, icon: 'home' },
+    { title: 'Pharmacy run', category: 'Health', defaultEstimatedDurationMinutes: 30, icon: 'medication' },
+    { title: 'Doctor call', category: 'Health', defaultEstimatedDurationMinutes: 15, icon: 'phone' },
+    { title: 'Email triage', category: 'Work', defaultEstimatedDurationMinutes: 30, icon: 'email' },
+    { title: 'Study session', category: 'Education', defaultEstimatedDurationMinutes: 90, icon: 'study' },
+    { title: 'Admin paperwork', category: 'Duty', defaultEstimatedDurationMinutes: 60, icon: 'admin' },
+    { title: 'Pay bill', category: 'Duty', defaultEstimatedDurationMinutes: 15, icon: 'admin' },
+    { title: 'Short walk', category: 'Sport', defaultEstimatedDurationMinutes: 30, icon: 'walk' },
+    { title: 'Take medication', category: 'Health', defaultEstimatedDurationMinutes: 5, icon: 'medication' },
+    { title: 'Meal planning', category: 'Duty', defaultEstimatedDurationMinutes: 30, icon: 'shopping_cart' },
+];
 
 const DEFAULT_FORM = {
     kind: 'FLEXIBLE_TASK',
@@ -387,6 +402,7 @@ function TaskCrudPage() {
             </section>
 
             <TaskList tasks={tasks} onEdit={startEdit} onComplete={completeTask} onDelete={deleteTask} />
+            <TaskTemplateManager />
         </div>
     );
 }
@@ -1012,6 +1028,203 @@ function MinutesSelect({ value, onChange, options, labels = {} }) {
             ))}
         </select>
     );
+}
+
+function TaskTemplateManager() {
+    const {
+        templates,
+        loading,
+        saving,
+        error,
+        createTemplate,
+        updateTemplate,
+        deleteTemplate,
+    } = useTaskTemplates();
+    const [editingId, setEditingId] = useState(null);
+    const [draft, setDraft] = useState(defaultTemplateDraft());
+    const editing = templates.find(template => template.id === editingId);
+
+    const startEdit = (template) => {
+        setEditingId(template.id);
+        setDraft({
+            title: template.title || '',
+            category: template.category || 'Work',
+            defaultType: template.defaultType || 'FLEXIBLE',
+            defaultPriority: template.defaultPriority || 3,
+            defaultEstimatedDurationMinutes: template.defaultEstimatedDurationMinutes || 60,
+            defaultFixedDurationMinutes: template.defaultFixedDurationMinutes || template.defaultEstimatedDurationMinutes || 60,
+            description: template.description || '',
+            addressText: template.addressText || '',
+            icon: template.icon || '',
+            displayOrder: template.displayOrder || 0,
+        });
+    };
+
+    const startSuggestion = (suggestion) => {
+        setEditingId(null);
+        setDraft({
+            ...defaultTemplateDraft(),
+            ...suggestion,
+            defaultType: 'FLEXIBLE',
+            defaultPriority: 3,
+            description: '',
+            addressText: '',
+            displayOrder: 0,
+        });
+    };
+
+    const reset = () => {
+        setEditingId(null);
+        setDraft(defaultTemplateDraft());
+    };
+
+    const save = async () => {
+        if (!draft.title.trim()) {
+            alert('Template title is required.');
+            return;
+        }
+        const payload = cleanPayload({
+            title: draft.title.trim(),
+            category: canonicalizeCategory(draft.category || 'Work'),
+            defaultType: draft.defaultType || 'FLEXIBLE',
+            defaultPriority: Number(draft.defaultPriority || 3),
+            defaultEstimatedDurationMinutes: Number(draft.defaultEstimatedDurationMinutes || 60),
+            defaultFixedDurationMinutes: Number(draft.defaultFixedDurationMinutes || draft.defaultEstimatedDurationMinutes || 60),
+            description: draft.description || null,
+            addressText: draft.addressText || null,
+            icon: draft.icon || null,
+            displayOrder: Number(draft.displayOrder || 0),
+        });
+        if (editingId) {
+            await updateTemplate(editingId, payload);
+        } else {
+            await createTemplate(payload);
+        }
+        reset();
+    };
+
+    return (
+        <section className={styles.templateSection}>
+            <div className={styles.templateHeader}>
+                <div>
+                    <span className={styles.eyebrow}>Templates</span>
+                    <h3>Task templates</h3>
+                    <p className={styles.muted}>Reusable presets for quick mobile agenda capture. Templates create normal tasks when used.</p>
+                </div>
+            </div>
+
+            <div className={styles.templateLayout}>
+                <div className={styles.templatePanel}>
+                    <h4>{editing ? `Edit ${editing.title}` : 'Create template'}</h4>
+                    <div className={styles.formGrid}>
+                        <label>
+                            Template title
+                            <input value={draft.title} onChange={event => setDraft(prev => ({ ...prev, title: event.target.value }))} />
+                        </label>
+                        <label>
+                            Category
+                            <select value={draft.category} onChange={event => setDraft(prev => ({ ...prev, category: event.target.value }))}>
+                                {CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                            </select>
+                        </label>
+                        <label>
+                            Default type
+                            <select value={draft.defaultType} onChange={event => setDraft(prev => ({ ...prev, defaultType: event.target.value }))}>
+                                <option value="FLEXIBLE">Flexible</option>
+                                <option value="FIXED">Fixed</option>
+                            </select>
+                        </label>
+                        <label>
+                            Priority
+                            <select value={draft.defaultPriority} onChange={event => setDraft(prev => ({ ...prev, defaultPriority: Number(event.target.value) }))}>
+                                {PRIORITIES.map(([label, value]) => <option key={value} value={value}>{label}</option>)}
+                            </select>
+                        </label>
+                        <label>
+                            Flexible duration
+                            <input type="number" min="5" value={draft.defaultEstimatedDurationMinutes} onChange={event => setDraft(prev => ({ ...prev, defaultEstimatedDurationMinutes: Number(event.target.value) }))} />
+                        </label>
+                        <label>
+                            Fixed duration
+                            <input type="number" min="5" value={draft.defaultFixedDurationMinutes} onChange={event => setDraft(prev => ({ ...prev, defaultFixedDurationMinutes: Number(event.target.value) }))} />
+                        </label>
+                        <label>
+                            Icon
+                            <input value={draft.icon} onChange={event => setDraft(prev => ({ ...prev, icon: event.target.value }))} placeholder="shopping_cart" />
+                        </label>
+                        <label>
+                            Display order
+                            <input type="number" value={draft.displayOrder} onChange={event => setDraft(prev => ({ ...prev, displayOrder: Number(event.target.value) }))} />
+                        </label>
+                        <label className={styles.fullWidth}>
+                            Notes
+                            <textarea value={draft.description} onChange={event => setDraft(prev => ({ ...prev, description: event.target.value }))} />
+                        </label>
+                        <label className={styles.fullWidth}>
+                            Location
+                            <input value={draft.addressText} onChange={event => setDraft(prev => ({ ...prev, addressText: event.target.value }))} placeholder="Optional place or address" />
+                        </label>
+                    </div>
+                    <div className={styles.taskActions}>
+                        <button type="button" className={styles.secondaryBtn} onClick={reset}>Clear</button>
+                        <button type="button" className={styles.primaryBtn} onClick={save} disabled={saving}>
+                            {saving ? 'Saving...' : editingId ? 'Save template' : 'Create template'}
+                        </button>
+                    </div>
+                </div>
+
+                <div className={styles.templatePanel}>
+                    <h4>Starter suggestions</h4>
+                    <div className={styles.templateSuggestionGrid}>
+                        {STARTER_TEMPLATES.map(suggestion => (
+                            <button key={suggestion.title} type="button" onClick={() => startSuggestion(suggestion)}>
+                                {templateIconText(suggestion)} {suggestion.title}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {error && <p className={styles.templateError}>{error}</p>}
+            {loading ? (
+                <p className={styles.muted}>Loading templates...</p>
+            ) : (
+                <div className={styles.templateCards}>
+                    {templates.map(template => (
+                        <article key={template.id} className={styles.templateCard}>
+                            <div>
+                                <span className={styles.templateIcon}>{templateIconText(template)}</span>
+                                <strong>{template.title}</strong>
+                                <span className={styles.taskMeta}>
+                                    {template.category} · {template.defaultType} · {template.defaultEstimatedDurationMinutes || template.defaultFixedDurationMinutes || 60}m · used {template.usageCount || 0}x
+                                </span>
+                            </div>
+                            <div className={styles.taskActions}>
+                                <button type="button" onClick={() => startEdit(template)}>Edit</button>
+                                <button type="button" onClick={() => deleteTemplate(template.id)}>Archive</button>
+                            </div>
+                        </article>
+                    ))}
+                    {!templates.length && <p className={styles.muted}>No templates yet. Pick a starter suggestion or create one above.</p>}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function defaultTemplateDraft() {
+    return {
+        title: '',
+        category: 'Work',
+        defaultType: 'FLEXIBLE',
+        defaultPriority: 3,
+        defaultEstimatedDurationMinutes: 60,
+        defaultFixedDurationMinutes: 60,
+        description: '',
+        addressText: '',
+        icon: '',
+        displayOrder: 0,
+    };
 }
 
 function TaskList({ tasks, onEdit, onComplete, onDelete }) {

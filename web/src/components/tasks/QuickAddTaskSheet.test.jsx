@@ -17,7 +17,10 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../../lib/api', () => ({
   default: {
+    get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -25,6 +28,7 @@ describe('QuickAddTaskSheet', () => {
   beforeEach(() => {
     navigate.mockReset();
     vi.clearAllMocks();
+    api.get.mockResolvedValue({ data: [] });
     api.post.mockResolvedValue({ data: { id: 42 } });
   });
 
@@ -158,5 +162,105 @@ describe('QuickAddTaskSheet', () => {
       endDateTime: '2026-07-11T10:30:00',
       dueDate: '2026-07-11T10:30:00',
     });
+  });
+
+  test('saved template renders stored icon and Add task instantiates without regenerating', async () => {
+    const user = userEvent.setup();
+    const regenerateToday = vi.fn();
+    api.get.mockResolvedValue({
+      data: [{
+        id: 7,
+        title: 'Laundry',
+        category: 'Duty',
+        defaultType: 'FLEXIBLE',
+        defaultEstimatedDurationMinutes: 45,
+        defaultPriority: 3,
+        icon: 'laundry',
+      }],
+    });
+    render(<QuickAddTaskSheet open onClose={vi.fn()} regenerateToday={regenerateToday} />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText('Wash')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add task' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/tasks/templates/7/instantiate', {}));
+    expect(regenerateToday).not.toHaveBeenCalled();
+  });
+
+  test('template without icon falls back from category', async () => {
+    api.get.mockResolvedValue({
+      data: [{
+        id: 8,
+        title: 'Study session',
+        category: 'Education',
+        defaultType: 'FLEXIBLE',
+        defaultEstimatedDurationMinutes: 90,
+        defaultPriority: 3,
+      }],
+    });
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText('Study')).toBeInTheDocument();
+    expect(screen.getByText('Study session')).toBeInTheDocument();
+  });
+
+  test('Add and regenerate today sends explicit dueDate and scheduleToday', async () => {
+    const user = userEvent.setup();
+    const regenerateToday = vi.fn().mockResolvedValue({});
+    api.get.mockResolvedValue({
+      data: [{
+        id: 9,
+        title: 'Pay bill',
+        category: 'Duty',
+        defaultType: 'FLEXIBLE',
+        defaultEstimatedDurationMinutes: 15,
+        defaultPriority: 3,
+        icon: 'admin',
+      }],
+    });
+    render(<QuickAddTaskSheet open onClose={vi.fn()} regenerateToday={regenerateToday} />, { wrapper: MemoryRouter });
+
+    await screen.findByText('Pay bill');
+    await user.click(screen.getByRole('button', { name: 'Add and regenerate today' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/tasks/templates/9/instantiate', expect.objectContaining({
+      dueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      scheduleToday: true,
+    })));
+    expect(regenerateToday).toHaveBeenCalled();
+  });
+
+  test('starter suggestion opens prefilled template form with icon', async () => {
+    const user = userEvent.setup();
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    await user.click(screen.getByText('Starter template suggestions'));
+    await user.click(screen.getByRole('button', { name: /Cart Buying groceries/i }));
+
+    expect(screen.getByDisplayValue('Buying groceries')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('shopping_cart')).toBeInTheDocument();
+  });
+
+  test('fixed template is not one-click scheduled and becomes a draft', async () => {
+    const user = userEvent.setup();
+    api.get.mockResolvedValue({
+      data: [{
+        id: 10,
+        title: 'Doctor appointment',
+        category: 'Health',
+        defaultType: 'FIXED',
+        defaultFixedDurationMinutes: 30,
+        defaultPriority: 3,
+        icon: 'health',
+      }],
+    });
+    render(<QuickAddTaskSheet open onClose={vi.fn()} />, { wrapper: MemoryRouter });
+
+    await screen.findByText('Doctor appointment');
+    await user.click(screen.getByRole('button', { name: 'Use draft' }));
+
+    expect(screen.getByDisplayValue('Doctor appointment')).toBeInTheDocument();
+    expect(await screen.findByText(/Fixed templates need a date and time/i)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith('/tasks/templates/10/instantiate', expect.anything());
   });
 });
