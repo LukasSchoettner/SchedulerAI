@@ -22,6 +22,7 @@ export default function HomePage() {
     const [generatingFromPrep, setGeneratingFromPrep] = useState(false);
     const [followUpItem, setFollowUpItem] = useState(null);
     const [followUpMode, setFollowUpMode] = useState('');
+    const [followUpError, setFollowUpError] = useState('');
     const [remainingMinutes, setRemainingMinutes] = useState(30);
 
     useEffect(() => {
@@ -152,16 +153,19 @@ export default function HomePage() {
                     remainingMinutes={remainingMinutes}
                     setMode={setFollowUpMode}
                     setRemainingMinutes={setRemainingMinutes}
+                    error={followUpError}
                     onClose={() => {
                         markFollowUpAnswered(followUpItem.id);
                         setFollowUpItem(null);
                         setFollowUpMode('');
+                        setFollowUpError('');
                     }}
                     onComplete={async () => {
                         await dayPlanState.completeItem(followUpItem);
                         markFollowUpAnswered(followUpItem.id);
                         setFollowUpItem(null);
                         setFollowUpMode('');
+                        setFollowUpError('');
                     }}
                     onReschedule={async (reason) => {
                         const payload = {
@@ -169,10 +173,15 @@ export default function HomePage() {
                             reason,
                             remainingMinutes: reason === 'STARTED_NOT_FINISHED' ? Number(remainingMinutes) : undefined,
                         };
-                        await dayPlanState.rescheduleItem(followUpItem, payload);
-                        markFollowUpAnswered(followUpItem.id);
-                        setFollowUpItem(null);
-                        setFollowUpMode('');
+                        try {
+                            await dayPlanState.rescheduleItem(followUpItem, payload);
+                            markFollowUpAnswered(followUpItem.id);
+                            setFollowUpItem(null);
+                            setFollowUpMode('');
+                            setFollowUpError('');
+                        } catch (err) {
+                            setFollowUpError('Could not reschedule this task. Please try again.');
+                        }
                     }}
                 />
             )}
@@ -285,6 +294,7 @@ function FlexibleFollowUpModal({
     remainingMinutes,
     setMode,
     setRemainingMinutes,
+    error,
     onClose,
     onComplete,
     onReschedule,
@@ -298,6 +308,7 @@ function FlexibleFollowUpModal({
                     <strong>{item.titleSnapshot}</strong>
                     <span>Scheduled: {formatTimeOnly(item.startDateTime)}-{formatTimeOnly(item.endDateTime)}</span>
                 </div>
+                {error && <p className={styles.followUpError}>{error}</p>}
                 {mode === 'unfinished' ? (
                     <div className={styles.followUpForm}>
                         <label>

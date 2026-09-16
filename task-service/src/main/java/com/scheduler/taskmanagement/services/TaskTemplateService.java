@@ -11,6 +11,7 @@ import com.scheduler.taskmanagement.dto.TaskTemplateRequest;
 import com.scheduler.taskmanagement.dto.TaskTemplateResponse;
 import com.scheduler.taskmanagement.models.TaskTemplate;
 import com.scheduler.taskmanagement.repositories.TaskTemplateRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ public class TaskTemplateService {
     private final TaskService taskService;
     private final Clock clock;
 
+    @Autowired
     public TaskTemplateService(TaskTemplateRepository templateRepository, TaskService taskService) {
         this(templateRepository, taskService, Clock.systemDefaultZone());
     }

@@ -275,6 +275,41 @@ public class TaskService {
         return mapToDTO(saved);
     }
 
+    @Transactional
+    public TaskDTO updateFlexibleTaskRemainingDuration(
+            Long taskId,
+            Long customerId,
+            Integer remainingMinutes,
+            LocalDateTime earliestStartDateTime,
+            LocalDateTime dueDate
+    ) {
+        if (remainingMinutes == null || remainingMinutes <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "remainingMinutes must be greater than 0");
+        }
+
+        Task task = taskRepository.findByIdAndCustomerId(taskId, customerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Task " + taskId + " not found for customer " + customerId
+                ));
+
+        if (!(task instanceof FlexibleTask flexibleTask)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Task is not flexible");
+        }
+
+        flexibleTask.setStatus(TaskStatus.PENDING);
+        flexibleTask.setEstimatedDuration(remainingMinutes);
+        if (earliestStartDateTime != null) {
+            flexibleTask.setEarliestStartDateTime(earliestStartDateTime);
+        }
+        if (dueDate != null) {
+            flexibleTask.setDueDate(dueDate);
+        }
+
+        Task saved = taskRepository.save(flexibleTask);
+        return mapToDTO(saved);
+    }
+
     public Optional<TaskDTO> getTaskById(Long id, Long customerId) {
         return taskRepository.findByIdAndCustomerId(id, customerId)
                 .map(this::mapToDTO);

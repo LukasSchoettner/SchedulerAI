@@ -5,9 +5,14 @@ import com.scheduler.commoncode.dto.TaskDTO;
 import com.scheduler.commoncode.grpc.JwtGrpcServerInterceptor;
 import com.scheduler.taskmanagement.mappers.TaskMapper;
 import com.scheduler.taskmanagement.services.TaskService;
+import com.google.protobuf.Timestamp;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @GrpcService
 public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
@@ -63,6 +68,24 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
     }
 
     @Override
+    public void updateFlexibleTaskRemainingDuration(UpdateFlexibleTaskRemainingDurationRequest req, StreamObserver<TaskProto> obs) {
+        long cid = req.getCustomerId() > 0 ? req.getCustomerId() : requireCurrentCustomerId();
+        try {
+            TaskDTO updated = taskService.updateFlexibleTaskRemainingDuration(
+                    req.getTaskId(),
+                    cid,
+                    req.getRemainingMinutes(),
+                    req.hasEarliestStartDateTime() ? timestampToLocalDateTime(req.getEarliestStartDateTime()) : null,
+                    req.hasDueDate() ? timestampToLocalDateTime(req.getDueDate()) : null
+            );
+            obs.onNext(taskMapper.toTaskProto(updated));
+            obs.onCompleted();
+        } catch (ResponseStatusException e) {
+            obs.onError(toGrpcStatus(e).withDescription(e.getReason()).asRuntimeException());
+        }
+    }
+
+    @Override
     public void updateTask(TaskProto req, StreamObserver<TaskProto> obs) {
         long cid = requireCurrentCustomerId();
         TaskDTO dto = taskMapper.toTaskDTO(req);
@@ -101,5 +124,18 @@ public class TaskServiceGrpcImpl extends TaskServiceGrpc.TaskServiceImplBase {
         boolean ok = taskService.deleteTask(req.getId(), cid);
         obs.onNext(TaskDeleteResponse.newBuilder().setSuccess(ok).build());
         obs.onCompleted();
+    }
+
+    private Status toGrpcStatus(ResponseStatusException exception) {
+        return switch (exception.getStatusCode().value()) {
+            case 400 -> Status.INVALID_ARGUMENT;
+            case 403 -> Status.PERMISSION_DENIED;
+            case 404 -> Status.NOT_FOUND;
+            default -> Status.UNKNOWN;
+        };
+    }
+
+    private LocalDateTime timestampToLocalDateTime(Timestamp timestamp) {
+        return LocalDateTime.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos(), ZoneOffset.UTC);
     }
 }

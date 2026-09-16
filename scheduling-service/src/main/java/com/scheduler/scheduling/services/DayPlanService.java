@@ -21,6 +21,7 @@ import com.scheduler.scheduling.routing.RoutingFeasibilityService;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
 import com.scheduler.taskmanagement.grpc.UpdateTaskStatusRequest;
+import com.scheduler.taskmanagement.grpc.UpdateFlexibleTaskRemainingDurationRequest;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import net.devh.boot.grpc.client.inject.GrpcClient;
@@ -35,7 +36,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -119,14 +119,15 @@ public class DayPlanService {
                 .map(DayPlanItem::getTaskId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        List<DayPlanItem> preservedSkippedItems = plan.getItems().stream()
-                .filter(item -> item.getStatus() == DayPlanItemStatus.SKIPPED)
+        List<DayPlanItem> preservedInactiveItems = plan.getItems().stream()
+                .filter(item -> item.getStatus() == DayPlanItemStatus.SKIPPED
+                        || item.getStatus() == DayPlanItemStatus.REPLACED)
                 .map(this::copyDetached)
                 .collect(Collectors.toCollection(ArrayList::new));
 
         GeneratedDayPlanData generatedData = generateItems(customerId, date, skippedTaskIds, startAfter, durationOverrides);
         List<DayPlanItem> generatedItems = generatedData.items();
-        generatedItems.addAll(preservedSkippedItems);
+        generatedItems.addAll(preservedInactiveItems);
         generatedItems.sort(Comparator.comparing(DayPlanItem::getStartDateTime).thenComparing(item -> item.getId() == null ? 0L : item.getId()));
 
         String nextSignature = signatureFor(generatedItems.stream()
@@ -272,6 +273,22 @@ public class DayPlanService {
                 || item.getStatus() == DayPlanItemStatus.FREE_TIME) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Item is no longer reschedulable");
         }
+        if (remainingMinutes != null && remainingMinutes <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "remainingMinutes must be greater than 0");
+        }
+
+        LocalDateTime effectiveStart = startAfter != null ? startAfter : LocalDateTime.now();
+        if (remainingMinutes != null) {
+            if (item.getTaskId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot update remaining duration without a task id");
+            }
+            taskStub.updateFlexibleTaskRemainingDuration(UpdateFlexibleTaskRemainingDurationRequest.newBuilder()
+                    .setTaskId(item.getTaskId())
+                    .setCustomerId(customerId)
+                    .setRemainingMinutes(remainingMinutes)
+                    .setEarliestStartDateTime(toTimestamp(effectiveStart))
+                    .build());
+        }
 
         item.setStatus(DayPlanItemStatus.REPLACED);
         item.setActionSource(DayPlanActionSource.USER_MODIFIED);
@@ -285,12 +302,7 @@ public class DayPlanService {
         refreshPlanSummary(plan);
         dayPlanRepository.save(plan);
 
-        LocalDateTime effectiveStart = startAfter != null ? startAfter : LocalDateTime.now();
-        Map<Long, Integer> durationOverrides = new HashMap<>();
-        if (item.getTaskId() != null && remainingMinutes != null && remainingMinutes > 0) {
-            durationOverrides.put(item.getTaskId(), remainingMinutes);
-        }
-        return generatePlan(customerId, plan.getPlanDate(), effectiveStart, durationOverrides);
+        return generatePlan(customerId, plan.getPlanDate(), effectiveStart, Map.of());
     }
 
     private DayPlan requireOwnedPlan(Long customerId, Long planId) {

@@ -39,6 +39,7 @@ service TaskService {
   rpc DeleteTask (TaskRequest) returns (TaskDeleteResponse);
   rpc ListTasksForCustomer (ListTasksRequest) returns (stream TaskProto);
   rpc UpdateTaskStatus(UpdateTaskStatusRequest) returns (TaskProto);
+  rpc UpdateFlexibleTaskRemainingDuration(UpdateFlexibleTaskRemainingDurationRequest) returns (TaskProto);
 }
 
 // Subscription service for streaming updates (unchanged)
@@ -136,4 +137,12 @@ message UpdateTaskStatusRequest {
   int64 id = 1;
   TaskStatus status = 2;
   int64 customerId = 3;
+}
+
+message UpdateFlexibleTaskRemainingDurationRequest {
+  int64 taskId = 1;
+  int64 customerId = 2;
+  int32 remainingMinutes = 3;
+  google.protobuf.Timestamp earliestStartDateTime = 4;
+  google.protobuf.Timestamp dueDate = 5;
 }

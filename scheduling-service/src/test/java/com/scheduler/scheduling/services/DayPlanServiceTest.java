@@ -23,6 +23,9 @@ import com.scheduler.scheduling.routing.TravelWarningCode;
 import com.scheduler.taskmanagement.grpc.TaskCreate;
 import com.scheduler.taskmanagement.grpc.TaskProto;
 import com.scheduler.taskmanagement.grpc.TaskServiceGrpc;
+import com.scheduler.taskmanagement.grpc.UpdateFlexibleTaskRemainingDurationRequest;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -261,18 +264,122 @@ class DayPlanServiceTest {
         DayPlanItem rescheduledItem = plan.getItems().getFirst();
         when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
         when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
-        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(emptySchedule());
+        when(taskStub.updateFlexibleTaskRemainingDuration(any(UpdateFlexibleTaskRemainingDurationRequest.class)))
+                .thenReturn(TaskProto.newBuilder().setId(44L).setEstimatedDuration(25).build());
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(schedule(
+                flexibleTask(44L, "Grocery shopping", "Duty"),
+                slot(date.atTime(11, 0), date.atTime(11, 25))
+        ));
 
-        service.rescheduleFlexibleItem(123L, 10L, 100L, startAfter, "STARTED_NOT_FINISHED", 25);
+        var response = service.rescheduleFlexibleItem(123L, 10L, 100L, startAfter, "STARTED_NOT_FINISHED", 25);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<java.util.Map<Long, Integer>> overridesCaptor = ArgumentCaptor.forClass(java.util.Map.class);
         verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), overridesCaptor.capture());
-        assertThat(overridesCaptor.getValue()).containsEntry(44L, 25);
+        assertThat(overridesCaptor.getValue()).isEmpty();
+        ArgumentCaptor<UpdateFlexibleTaskRemainingDurationRequest> updateCaptor = ArgumentCaptor.forClass(UpdateFlexibleTaskRemainingDurationRequest.class);
+        verify(taskStub).updateFlexibleTaskRemainingDuration(updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getTaskId()).isEqualTo(44L);
+        assertThat(updateCaptor.getValue().getCustomerId()).isEqualTo(123L);
+        assertThat(updateCaptor.getValue().getRemainingMinutes()).isEqualTo(25);
+        assertThat(updateCaptor.getValue().hasEarliestStartDateTime()).isTrue();
         assertThat(rescheduledItem.getFollowUpStatus()).isEqualTo(FollowUpStatus.RESCHEDULED);
         assertThat(rescheduledItem.getFollowUpAnswer()).isEqualTo("STARTED_NOT_FINISHED");
         assertThat(rescheduledItem.getRemainingMinutes()).isEqualTo(25);
+        assertThat(rescheduledItem.getStartDateTime()).isEqualTo(date.atTime(10, 0));
+        assertThat(rescheduledItem.getEndDateTime()).isEqualTo(date.atTime(10, 30));
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(0).status()).isEqualTo(DayPlanItemStatus.REPLACED);
+        assertThat(response.items().get(0).remainingMinutes()).isEqualTo(25);
+        assertThat(java.time.Duration.between(response.items().get(1).startDateTime(), response.items().get(1).endDateTime()).toMinutes())
+                .isEqualTo(25);
         verify(notificationService).dismissUnreadForItem(123L, 100L);
+    }
+
+    @Test
+    void subsequentRegenerationDoesNotUseTemporaryDurationOverride() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.REPLACED);
+        plan.getItems().getFirst().setRemainingMinutes(25);
+        plan.setPlanDate(date);
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), any())).thenReturn(schedule(
+                flexibleTask(44L, "Grocery shopping", "Duty"),
+                slot(date.atTime(11, 0), date.atTime(11, 25))
+        ));
+
+        var response = service.regenerate(123L, 10L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<Long, Integer>> overridesCaptor = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), any(), overridesCaptor.capture());
+        assertThat(overridesCaptor.getValue()).isEmpty();
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(0).status()).isEqualTo(DayPlanItemStatus.REPLACED);
+        assertThat(java.time.Duration.between(response.items().get(1).startDateTime(), response.items().get(1).endDateTime()).toMinutes())
+                .isEqualTo(25);
+    }
+
+    @Test
+    void notDoneWithoutRemainingMinutesKeepsOriginalEstimate() {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+        LocalDateTime startAfter = date.atTime(11, 0);
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
+        plan.setPlanDate(date);
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(dayPlanRepository.findByCustomerIdAndPlanDate(123L, date)).thenReturn(Optional.of(plan));
+        when(taskSchedulerService.scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), any())).thenReturn(schedule(
+                flexibleTask(44L, "Grocery shopping", "Duty"),
+                slot(date.atTime(11, 0), date.atTime(12, 0))
+        ));
+
+        var response = service.rescheduleFlexibleItem(123L, 10L, 100L, startAfter, "NOT_TACKLED", null);
+
+        verify(taskStub, never()).updateFlexibleTaskRemainingDuration(any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<Long, Integer>> overridesCaptor = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(taskSchedulerService).scheduleTasksForCustomer(eq(123L), any(Collection.class), eq(startAfter), overridesCaptor.capture());
+        assertThat(overridesCaptor.getValue()).isEmpty();
+        assertThat(response.items().get(0).remainingMinutes()).isNull();
+        assertThat(java.time.Duration.between(response.items().get(1).startDateTime(), response.items().get(1).endDateTime()).toMinutes())
+                .isEqualTo(60);
+    }
+
+    @Test
+    void invalidRemainingMinutesIsRejectedBeforeChangingState() {
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
+        DayPlanItem item = plan.getItems().getFirst();
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.rescheduleFlexibleItem(123L, 10L, 100L, LocalDateTime.now(), "STARTED_NOT_FINISHED", 0))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+
+        assertThat(item.getStatus()).isEqualTo(DayPlanItemStatus.PLANNED);
+        assertThat(item.getFollowUpStatus()).isEqualTo(FollowUpStatus.NOT_NEEDED);
+        verify(taskStub, never()).updateFlexibleTaskRemainingDuration(any());
+        verify(notificationService, never()).dismissUnreadForItem(any(), any());
+    }
+
+    @Test
+    void taskServiceFailureDoesNotMarkRescheduledOrDismissNotification() {
+        DayPlan plan = planWithItem(123L, 10L, 100L, 44L, DayPlanItemStatus.PLANNED);
+        DayPlanItem item = plan.getItems().getFirst();
+        when(dayPlanRepository.findById(10L)).thenReturn(Optional.of(plan));
+        when(taskStub.updateFlexibleTaskRemainingDuration(any(UpdateFlexibleTaskRemainingDurationRequest.class)))
+                .thenThrow(new StatusRuntimeException(Status.UNAVAILABLE));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.rescheduleFlexibleItem(123L, 10L, 100L, LocalDateTime.now(), "STARTED_NOT_FINISHED", 25))
+                .isInstanceOf(StatusRuntimeException.class);
+
+        assertThat(item.getStatus()).isEqualTo(DayPlanItemStatus.PLANNED);
+        assertThat(item.getFollowUpStatus()).isEqualTo(FollowUpStatus.NOT_NEEDED);
+        assertThat(item.getRemainingMinutes()).isNull();
+        verify(notificationService, never()).dismissUnreadForItem(any(), any());
+        verify(dayPlanRepository, never()).save(plan);
     }
 
     @Test
@@ -357,6 +464,14 @@ class DayPlanServiceTest {
         schedule.setScheduledTasks(new ArrayList<>(List.of(
                 new ScheduledTask(firstTask, firstSlot),
                 new ScheduledTask(secondTask, secondSlot)
+        )));
+        return schedule;
+    }
+
+    private Schedule schedule(FlexibleTaskDTO task, TimeSlot slot) {
+        Schedule schedule = new Schedule();
+        schedule.setScheduledTasks(new ArrayList<>(List.of(
+                new ScheduledTask(task, slot)
         )));
         return schedule;
     }
