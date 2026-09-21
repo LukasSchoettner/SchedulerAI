@@ -1,6 +1,9 @@
 // src/main/java/com/scheduler/taskmanagement/controllers/TaskController.java
 package com.scheduler.taskmanagement.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scheduler.commoncode.dto.TaskDTO;
 import com.scheduler.commoncode.dto.UpdateTaskStatusDTO;
 import com.scheduler.commoncode.enums.TaskStatus;
@@ -10,7 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -19,10 +24,12 @@ public class TaskController {
 
     private final TaskService taskService;
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper;
 
-    public TaskController(TaskService taskService, JwtUtil jwtUtil) {
+    public TaskController(TaskService taskService, JwtUtil jwtUtil, ObjectMapper objectMapper) {
         this.taskService = taskService;
         this.jwtUtil     = jwtUtil;
+        this.objectMapper = objectMapper;
     }
 
     private Long extractCustomerId(String authHeader) {
@@ -63,11 +70,14 @@ public class TaskController {
     @PutMapping("/{id}")
     public ResponseEntity<TaskDTO> updateTask(
             @PathVariable Long id,
-            @RequestBody TaskDTO dto,
+            @RequestBody JsonNode body,
             @RequestHeader("Authorization") String authHeader
-    ) {
+    ) throws JsonProcessingException {
         Long cid = extractCustomerId(authHeader);
-        return taskService.updateTask(id, dto, cid)
+        TaskDTO dto = objectMapper.treeToValue(body, TaskDTO.class);
+        Set<String> presentFields = new HashSet<>();
+        body.fieldNames().forEachRemaining(presentFields::add);
+        return taskService.updateTaskFromRest(id, dto, cid, presentFields)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

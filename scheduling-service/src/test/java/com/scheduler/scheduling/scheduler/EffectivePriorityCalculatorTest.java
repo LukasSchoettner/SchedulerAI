@@ -60,6 +60,13 @@ class EffectivePriorityCalculatorTest {
     }
 
     @Test
+    void zeroPriorityUsesCategoryImportanceAsExistingUnsetValue() {
+        SchedulingPreferenceDTO preferences = preferences(Map.of("Work", 4));
+
+        assertThat(calculator.calculate(task("Work", 0, null), preferences, now)).isEqualTo(4);
+    }
+
+    @Test
     void missingAndCustomCategoriesFallBackSafely() {
         assertThat(calculator.calculate(task("Custom", null, null), new SchedulingPreferenceDTO(), now)).isEqualTo(2);
         assertThat(calculator.calculate(task(null, null, null), null, now)).isEqualTo(2);

@@ -26,9 +26,10 @@ export default function useCreateTask() {
 export function buildQuickTaskPayload(form, now = new Date()) {
   const title = String(form.title || '').trim();
   const category = canonicalizeCategory(form.category || 'Work') || 'Work';
-  const priority = Number(form.priority || 3);
+  const priority = form.priority === '' || form.priority == null ? 0 : Number(form.priority);
+  const intent = form.intentPreset || (form.taskType === 'FIXED' ? 'FIXED_TIME' : 'NO_DEADLINE');
 
-  if (form.taskType === 'FIXED') {
+  if (intent === 'FIXED_TIME') {
     const startDateTime = fixedStartDateTime(form);
     const endDateTime = addMinutes(startDateTime, Number(form.fixedDuration || form.estimatedDuration || 60));
     const payload = {
@@ -38,7 +39,6 @@ export function buildQuickTaskPayload(form, now = new Date()) {
       status: 'PENDING',
       recurrencePattern: 'NONE',
       category,
-      dueDate: endDateTime,
       startDateTime,
       endDateTime,
     };
@@ -71,13 +71,23 @@ export function buildQuickTaskPayload(form, now = new Date()) {
   if (form.addressText?.trim()) {
     payload.addressText = form.addressText.trim();
   }
-
-  if (form.dueDate) {
-    payload.dueDate = `${form.dueDate}T23:59:00`;
+  if (Number(form.addressId) > 0) {
+    payload.addressId = Number(form.addressId);
   }
 
-  if (form.scheduleToday) {
+  if ((intent === 'TODAY' || intent === 'BY_DATE' || intent === 'MORE_OPTIONS') && form.dueDate) {
+    payload.dueDate = localDateDeadline(form.dueDate);
+  }
+
+  if (intent === 'TODAY' || (intent === 'MORE_OPTIONS' && form.scheduleToday)) {
     payload.earliestStartDateTime = toLocalDateTime(now);
+  }
+
+  if (intent === 'MORE_OPTIONS' && form.earliestStartDateTime) {
+    payload.earliestStartDateTime = form.earliestStartDateTime;
+  }
+  if (intent === 'MORE_OPTIONS' && form.latestEndDateTime) {
+    payload.latestEndDateTime = form.latestEndDateTime;
   }
 
   return payload;
@@ -85,6 +95,7 @@ export function buildQuickTaskPayload(form, now = new Date()) {
 
 export function defaultQuickAddForm(now = new Date()) {
   return {
+    intentPreset: 'NO_DEADLINE',
     taskType: 'FLEXIBLE',
     title: '',
     category: 'Work',
@@ -92,8 +103,11 @@ export function defaultQuickAddForm(now = new Date()) {
     fixedDate: toDateInput(now),
     fixedStartTime: toTimeInput(now),
     fixedDuration: 60,
-    priority: 3,
-    dueDate: toDateInput(now),
+    priority: 0,
+    dueDate: '',
+    earliestStartDateTime: '',
+    latestEndDateTime: '',
+    addressId: null,
     addressText: '',
     scheduleToday: false,
     recurrencePattern: 'NONE',
@@ -110,6 +124,10 @@ export function addMinutes(value, minutes) {
   const date = new Date(value);
   date.setMinutes(date.getMinutes() + Number(minutes || 0));
   return toLocalDateTime(date);
+}
+
+export function localDateDeadline(localDate) {
+  return localDate ? `${localDate}T23:59:00` : null;
 }
 
 function formatCreateError(err) {

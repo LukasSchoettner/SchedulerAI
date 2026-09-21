@@ -13,7 +13,21 @@ On mobile, the bottom navigation exposes Today, Schedule, Quick Add, Tasks, and 
 
 ## Quick Add Task
 
-Quick Add is for fast capture when a task appears during the day.
+Quick Add is for fast capture when a task appears during the day. Built-in intents describe scheduling behavior; they are separate from saved customer templates and starter template suggestions.
+
+Built-in intents:
+
+- **No deadline** is the default. The task remains eligible for ordinary scheduling but receives no deadline pressure or automatic deadline reminder.
+- **Today** creates a flexible task with the user's local date and enables the existing today-regeneration flow.
+- **By a date** adds a user-selected local deadline without automatically scheduling today.
+- **At a specific time** creates a fixed task using authoritative start and end times.
+- **At a location** reuses the existing task location fields.
+- **After another task** is marked as coming soon because dependency persistence and scheduler enforcement are not implemented.
+- **More options** reveals only constraints already persisted and enforced, including earliest start and latest finish.
+
+`No deadline` does not mean “never schedule.” It means the task has no deadline-pressure boost and no automatic deadline reminder. A separate `Not now` intent is intentionally omitted until deferred eligibility needs more product work; the full editor can already persist an enforced earliest start when needed.
+
+Saved customer templates remain reusable content presets such as “Laundry” or “Doctor call.” Starter suggestions only prefill the editable template form and are not saved automatically. Using a saved template fills its content and selects the matching flexible or fixed intent; merely browsing templates creates no task.
 
 - opened from the mobile `+`
 - requires only a title
@@ -27,7 +41,7 @@ Default quick-add behavior:
 
 - `type = FLEXIBLE`
 - `status = PENDING`
-- normal priority
+- category-derived priority unless the user explicitly chooses a priority
 - existing default category
 - fixed-estimate flexible task fields only where the current API expects them
 
@@ -44,7 +58,7 @@ Use the full flow for:
 - reminders and detailed location handling
 - editing existing tasks
 
-Quick Add includes `More options`, which opens `/tasks`. If carrying the typed Quick Add title into the full editor is not implemented, the user can still continue in the existing full task wizard.
+Quick Add includes a separate `Full editor` action, which opens `/tasks` with the visible draft. A genuinely absent deadline remains absent during the handoff.
 
 ## Schedule Today
 

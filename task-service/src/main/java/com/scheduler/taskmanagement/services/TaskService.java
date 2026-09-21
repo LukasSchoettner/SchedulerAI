@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class TaskService {
@@ -49,12 +50,13 @@ public class TaskService {
     private FixedTask createFixedTask(FixedTaskDTO dto) {
 
         LocalDateTime now = LocalDateTime.now();
-        // use dueDate as LocalDateTime if provided, else default to now
-        LocalDateTime due = dto.getDueDate() != null ? dto.getDueDate() : now;
+        LocalDateTime due = dto.getDueDate();
         // start = provided or now
         LocalDateTime start = dto.getStartDateTime() != null ? dto.getStartDateTime() : now;
-        // end = provided or due
-        LocalDateTime end = dto.getEndDateTime() != null ? dto.getEndDateTime() : due;
+        // Fixed start/end remain authoritative; dueDate is optional deadline metadata.
+        LocalDateTime end = dto.getEndDateTime() != null
+                ? dto.getEndDateTime()
+                : due != null ? due : start.plusHours(1);
         // reminder = provided or midpoint(start,end)
         LocalDateTime reminder = dto.getReminderDate() != null
                 ? dto.getReminderDate()
@@ -82,18 +84,17 @@ public class TaskService {
 
     private FlexibleTask createFlexibleTask(FlexibleTaskDTO dto) {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime due = dto.getDueDate() != null ? dto.getDueDate() : now;
+        LocalDateTime due = dto.getDueDate();
         LocalDateTime earliest = dto.getEarliestStartDateTime() != null
                 ? dto.getEarliestStartDateTime() : now;
         LocalDateTime latest = dto.getLatestEndDateTime() != null
                 ? dto.getLatestEndDateTime() : due;
-        LocalDateTime reminder = dto.getReminderDate() != null
-                ? dto.getReminderDate()
-                : earliest.plus(Duration.between(earliest, latest).dividedBy(2));
+        LocalDateTime reminder = dto.getReminderDate();
+        int priority = dto.getPriority() != null ? dto.getPriority() : 0;
 
         FlexibleTask task = new FlexibleTask(
                 dto.getTitle(),
-                dto.getPriority(),
+                priority,
                 due,
                 reminder,
                 dto.getStatus(),
@@ -169,6 +170,30 @@ public class TaskService {
      */
     @Transactional
     public Optional<TaskDTO> updateTask(Long id, TaskDTO dto, Long customerId) {
+        return updateTaskInternal(id, dto, customerId, Set.of());
+    }
+
+    /**
+     * REST updates need field presence so omitted values can remain unchanged while an explicit
+     * JSON null can clear optional flexible-task constraints. gRPC keeps its existing merge behavior.
+     */
+    @Transactional
+    public Optional<TaskDTO> updateTaskFromRest(
+            Long id,
+            TaskDTO dto,
+            Long customerId,
+            Set<String> presentFields
+    ) {
+        return updateTaskInternal(id, dto, customerId, presentFields != null ? presentFields : Set.of());
+    }
+
+    private Optional<TaskDTO> updateTaskInternal(
+            Long id,
+            TaskDTO dto,
+            Long customerId,
+            Set<String> presentFields
+    ) {
+        boolean presenceAware = !presentFields.isEmpty();
         return taskRepository
                 .findByIdAndCustomerId(id, customerId)
                 .map(existing -> {
@@ -176,13 +201,26 @@ public class TaskService {
                     if (dto.getTitle() != null) {
                         existing.setTitle(dto.getTitle());
                     }
-                    if (dto.getPriority() != null) {
-                        existing.setPriority(dto.getPriority());
+                    if (presenceAware ? presentFields.contains("priority") : dto.getPriority() != null) {
+                        existing.setPriority(dto.getPriority() != null ? dto.getPriority() : 0);
                     }
-                    if (dto.getDueDate() != null) {
+                    if (presenceAware && presentFields.contains("dueDate")) {
+                        if (dto.getDueDate() == null && !(existing instanceof FlexibleTask)) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only flexible tasks may clear dueDate");
+                        }
+                        existing.setDueDate(dto.getDueDate());
+                        if (dto.getDueDate() == null && !presentFields.contains("reminderDate")) {
+                            existing.setReminderDate(null);
+                        }
+                    } else if (!presenceAware && dto.getDueDate() != null) {
                         existing.setDueDate(dto.getDueDate());
                     }
-                    if (dto.getReminderDate() != null) {
+                    if (presenceAware && presentFields.contains("reminderDate")) {
+                        if (dto.getReminderDate() == null && !(existing instanceof FlexibleTask)) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only flexible tasks may clear reminderDate");
+                        }
+                        existing.setReminderDate(dto.getReminderDate());
+                    } else if (!presenceAware && dto.getReminderDate() != null) {
                         existing.setReminderDate(dto.getReminderDate());
                     }
                     if (dto.getStatus() != null) {
@@ -243,10 +281,14 @@ public class TaskService {
                         if (flexDto.getTargetAllocatedTime() != null) {
                             fl.setTargetAllocatedTime(flexDto.getTargetAllocatedTime());
                         }
-                        if (flexDto.getEarliestStartDateTime() != null) {
+                        if (presenceAware && presentFields.contains("earliestStartDateTime")) {
+                            fl.setEarliestStartDateTime(flexDto.getEarliestStartDateTime());
+                        } else if (!presenceAware && flexDto.getEarliestStartDateTime() != null) {
                             fl.setEarliestStartDateTime(flexDto.getEarliestStartDateTime());
                         }
-                        if (flexDto.getLatestEndDateTime() != null) {
+                        if (presenceAware && presentFields.contains("latestEndDateTime")) {
+                            fl.setLatestEndDateTime(flexDto.getLatestEndDateTime());
+                        } else if (!presenceAware && flexDto.getLatestEndDateTime() != null) {
                             fl.setLatestEndDateTime(flexDto.getLatestEndDateTime());
                         }
 

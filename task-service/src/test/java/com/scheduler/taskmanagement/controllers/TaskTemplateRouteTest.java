@@ -1,5 +1,6 @@
 package com.scheduler.taskmanagement.controllers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scheduler.commoncode.dto.FlexibleTaskDTO;
 import com.scheduler.commoncode.enums.TaskNature;
 import com.scheduler.commoncode.enums.TaskStatus;
@@ -28,7 +29,7 @@ class TaskTemplateRouteTest {
     private final JwtUtil jwtUtil = mock(JwtUtil.class);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(
             new TaskTemplateController(templateService, jwtUtil),
-            new TaskController(taskService, jwtUtil)
+            new TaskController(taskService, jwtUtil, new ObjectMapper().findAndRegisterModules())
     ).build();
 
     @Test

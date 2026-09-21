@@ -5,7 +5,6 @@ import com.scheduler.commoncode.enums.TaskStatus;
 import com.scheduler.commoncode.enums.TaskType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -34,16 +33,14 @@ public abstract class Task {
 
     private int priority;  // or an enum if you prefer: LOW, MEDIUM, HIGH, etc.
 
-    @NotNull
-    @Column(nullable = false)
+    @Column(nullable = true)
     private LocalDateTime dueDate;     // "deadline" for the task
 
     @Nullable
     @Column(nullable = true)
     private TaskType type; // FIXED, FLEXIBLE, RECURRING
 
-    @NotNull
-    @Column(nullable = false)
+    @Column(nullable = true)
     private LocalDateTime reminderDate;  // remind customer at this time
 
     @Column(length = 2000)

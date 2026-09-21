@@ -11,6 +11,7 @@ import LocationPicker from '../components/LocationPicker';
 
 const CATEGORIES = ['Work', 'Duty', 'Health', 'Social', 'Sport', 'Leisure'];
 const PRIORITIES = [
+    ['Category default', 0],
     ['Optional', 1],
     ['Low', 2],
     ['Normal', 3],
@@ -45,11 +46,11 @@ const DEFAULT_FORM = {
     routineMode: 'FLEXIBLE',
     title: '',
     category: 'Work',
-    priority: 3,
+    priority: 0,
     descriptionMode: 'NONE',
     description: '',
     status: 'PENDING',
-    dueMode: 'TOMORROW',
+    dueMode: 'NONE',
     dueDate: '',
     fixedStartDateTime: '',
     fixedEndDateTime: '',
@@ -81,7 +82,7 @@ const DEFAULT_FORM = {
     routineWindow: 'ANYTIME',
     routineCustomStart: '08:00',
     routineCustomEnd: '20:00',
-    reminderMode: 'ONE_HOUR_BEFORE',
+    reminderMode: 'NONE',
     customReminderDate: '',
     locationMode: 'NO',
     addressText: '',
@@ -786,7 +787,7 @@ function DeadlineField({ form, setField, label = 'When should this be done by?' 
                     <option value="TOMORROW">Tomorrow</option>
                     <option value="THIS_WEEK">This week</option>
                     <option value="PICK">Pick date and time</option>
-                    <option value="NO_STRICT">No strict deadline</option>
+                    <option value="NONE">No deadline</option>
                 </select>
             </label>
             {form.dueMode === 'PICK' && (
@@ -1286,7 +1287,7 @@ function buildTaskPayload(form) {
         const end = form.fixedEndDateTime || addMinutes(start, 60);
         return {
             ...common,
-            dueDate: end,
+            dueDate: null,
             startDateTime: start,
             endDateTime: end,
         };
@@ -1368,11 +1369,12 @@ function validateForm(form) {
 
 function resolveDueDate(form, type) {
     if (type === 'FIXED') return form.fixedEndDateTime || addMinutes(nowInput(), 60);
+    if (form.dueMode === 'NONE') return null;
     if (form.dueMode === 'PICK' && form.dueDate) return form.dueDate;
     const now = new Date();
     if (form.dueMode === 'TODAY') return setDateTime(now, 20, 0);
     if (form.dueMode === 'TOMORROW') return setDateTime(addDays(now, 1), 20, 0);
-    if (form.dueMode === 'NO_STRICT') return setDateTime(endOfWeek(now), 20, 0);
+    if (form.dueMode === 'THIS_WEEK') return setDateTime(endOfWeek(now), 20, 0);
     return setDateTime(endOfWeek(now), 20, 0);
 }
 
@@ -1437,9 +1439,11 @@ function resolveBufferMinutes(form) {
 function resolveReminderDate(form, type) {
     if (form.reminderMode === 'NONE') return null;
     if (form.reminderMode === 'CUSTOM') return form.customReminderDate || null;
+    const dueDate = resolveDueDate(form, type);
     const anchor = type === 'FIXED'
         ? new Date(form.fixedStartDateTime || nowInput())
-        : new Date(resolveDueDate(form, type));
+        : dueDate ? new Date(dueDate) : null;
+    if (!anchor || Number.isNaN(anchor.getTime())) return null;
     const minutes = {
         AT_START: 0,
         AT_DEADLINE: 0,
@@ -1526,10 +1530,10 @@ function formFromTask(task) {
         kind: type === 'FIXED' ? 'FIXED_EVENT' : type === 'PROJECT' ? 'PROJECT' : task.taskNature === 'OPEN_ENDED' ? 'MULTI_SESSION' : 'FLEXIBLE_TASK',
         title: task.title || '',
         category: canonicalizeCategory(task.category || 'Work'),
-        priority: task.priority || 3,
+        priority: task.priority ?? 0,
         descriptionMode: task.description ? 'ADD' : 'NONE',
         description: task.description || '',
-        dueMode: 'PICK',
+        dueMode: task.dueDate ? 'PICK' : 'NONE',
         dueDate: toInputValue(task.dueDate),
         fixedStartDateTime: toInputValue(task.startDateTime),
         fixedEndDateTime: toInputValue(task.endDateTime),
@@ -1568,8 +1572,8 @@ function formFromQuickAddDraft(draft = {}) {
         kind: fixed ? 'FIXED_EVENT' : 'FLEXIBLE_TASK',
         title: draft.title || '',
         category: canonicalizeCategory(draft.category || 'Work'),
-        priority: Number(draft.priority || 3),
-        dueMode: dueDate ? 'PICK' : 'NO_STRICT',
+        priority: Number(draft.priority ?? 0),
+        dueMode: dueDate ? 'PICK' : 'NONE',
         dueDate,
         fixedStartDateTime: fixedStart,
         fixedEndDateTime: fixedEnd,

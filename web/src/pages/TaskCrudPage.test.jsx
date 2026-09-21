@@ -40,7 +40,7 @@ describe('TaskCrudPage full task creation flow', () => {
 
     await screen.findByText('Task Management');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByLabelText(/How important/i)).toHaveDisplayValue('Normal');
+    expect(screen.getByLabelText(/How important/i)).toHaveDisplayValue('Category default');
     await user.type(screen.getByLabelText(/What is the task called/i), 'Plan day');
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
@@ -71,6 +71,23 @@ describe('TaskCrudPage full task creation flow', () => {
     expect(await screen.findByDisplayValue('Draft appointment')).toBeInTheDocument();
     expect(screen.getByLabelText(/Which area/i)).toHaveDisplayValue('Health');
     expect(screen.getByLabelText(/How important/i)).toHaveDisplayValue('Normal');
+  });
+
+  test('quick add no-deadline draft stays no-deadline in the full editor', async () => {
+    renderTaskPage({
+      intentPreset: 'NO_DEADLINE',
+      taskType: 'FLEXIBLE',
+      title: 'Someday idea',
+      category: 'Work',
+      priority: 0,
+      dueDate: '',
+      estimatedDuration: 60,
+      addressText: '',
+      recurrencePattern: 'NONE',
+    });
+
+    expect(await screen.findByDisplayValue('Someday idea')).toBeInTheDocument();
+    expect(screen.getByLabelText(/How important/i)).toHaveDisplayValue('Category default');
   });
 
   test('template management section renders and saves a starter suggestion with icon', async () => {

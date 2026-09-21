@@ -66,4 +66,21 @@ class TaskDtoLocationMappingTest {
         assertThat(dto.getAddressId()).isNull();
         assertThat(dto.getAddressText()).isBlank();
     }
+
+    @Test
+    void absentProtoDeadlineRemainsNullForScheduling() {
+        TaskProto proto = TaskProto.newBuilder()
+                .setId(47L)
+                .setTitle("No deadline")
+                .setType(TaskType.FLEXIBLE)
+                .setStatus(TaskStatus.PENDING)
+                .setPriority(0)
+                .build();
+
+        FlexibleTaskDTO dto = (FlexibleTaskDTO) mapper.toTaskDTO(proto);
+
+        assertThat(dto.getDueDate()).isNull();
+        assertThat(dto.getReminderDate()).isNull();
+        assertThat(dto.getPriority()).isZero();
+    }
 }

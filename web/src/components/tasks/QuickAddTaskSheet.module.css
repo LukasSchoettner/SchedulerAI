@@ -80,6 +80,70 @@
   color: #0b3d73 !important;
 }
 
+.intentFieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.intentFieldset legend {
+  margin-bottom: 0.45rem;
+  color: #334155;
+  font-weight: 900;
+}
+
+.intentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.intentGrid button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #17202a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.intentGrid button small {
+  display: block;
+  margin-top: 0.1rem;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.intentActive {
+  border-color: #1565c0 !important;
+  background: #eaf2ff !important;
+  color: #0b3d73 !important;
+}
+
+.moreOptions {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.info {
+  margin: 0;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a5f;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .iconBtn {
   width: 2.55rem;
   padding: 0;
@@ -295,6 +359,7 @@
 }
 
 @media (max-width: 520px) {
+  .intentGrid,
   .compactGrid {
     grid-template-columns: 1fr;
   }

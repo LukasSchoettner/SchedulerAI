@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BUILT_IN_CATEGORIES } from '../../lib/categories';
 import useCreateTask, { buildQuickTaskPayload, defaultQuickAddForm } from '../../hooks/useCreateTask';
@@ -6,11 +6,22 @@ import useTaskTemplates, { templateIconText } from '../../hooks/useTaskTemplates
 import styles from './QuickAddTaskSheet.module.css';
 
 const PRIORITIES = [
+  ['Category default', 0],
   ['Optional', 1],
   ['Low', 2],
   ['Normal', 3],
   ['High', 4],
   ['Urgent', 5],
+];
+
+const INTENTS = [
+  ['NO_DEADLINE', 'No deadline'],
+  ['TODAY', 'Today'],
+  ['BY_DATE', 'By a date'],
+  ['FIXED_TIME', 'At a specific time'],
+  ['LOCATION', 'At a location'],
+  ['AFTER_TASK', 'After another task'],
+  ['MORE_OPTIONS', 'More options'],
 ];
 
 const STARTER_TEMPLATES = [
@@ -47,7 +58,8 @@ export default function QuickAddTaskSheet({
     instantiateTemplate,
   } = useTaskTemplates({ enabled: open });
   const canRegenerate = Boolean(regenerateToday);
-  const payloadPreview = useMemo(() => buildQuickTaskPayload(form), [form]);
+  const isFlexible = form.intentPreset !== 'FIXED_TIME';
+  const canSave = Boolean(form.title.trim()) && form.intentPreset !== 'AFTER_TASK';
 
   if (!open) return null;
 
@@ -55,6 +67,28 @@ export default function QuickAddTaskSheet({
     setMessage('');
     setError('');
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const selectIntent = (intentPreset) => {
+    setMessage('');
+    setError('');
+    setForm(prev => {
+      const keepLocation = intentPreset === 'LOCATION' || intentPreset === 'MORE_OPTIONS';
+      const keepDeadline = intentPreset === 'MORE_OPTIONS' && ['TODAY', 'BY_DATE', 'MORE_OPTIONS'].includes(prev.intentPreset);
+      return {
+        ...prev,
+        intentPreset,
+        taskType: intentPreset === 'FIXED_TIME' ? 'FIXED' : 'FLEXIBLE',
+        dueDate: intentPreset === 'TODAY' ? todayInput() : keepDeadline ? prev.dueDate : '',
+        scheduleToday: intentPreset === 'TODAY',
+        earliestStartDateTime: '',
+        latestEndDateTime: '',
+        fixedDate: intentPreset === 'FIXED_TIME' ? prev.fixedDate : '',
+        fixedStartTime: intentPreset === 'FIXED_TIME' ? prev.fixedStartTime : '',
+        addressId: keepLocation ? prev.addressId : null,
+        addressText: keepLocation ? prev.addressText : '',
+      };
+    });
   };
 
   const resetAndClose = () => {
@@ -70,8 +104,16 @@ export default function QuickAddTaskSheet({
       setError('Add a title first.');
       return;
     }
-    if (form.taskType === 'FIXED' && Number(form.fixedDuration || 0) <= 0) {
-      setError('Choose a fixed task duration greater than 0 minutes.');
+    if (form.intentPreset === 'AFTER_TASK') {
+      setError('Task dependencies are not available yet. Choose another task kind.');
+      return;
+    }
+    if (form.intentPreset === 'BY_DATE' && !form.dueDate) {
+      setError('Choose a due date first.');
+      return;
+    }
+    if (form.intentPreset === 'FIXED_TIME' && (!form.fixedDate || !form.fixedStartTime || Number(form.fixedDuration || 0) <= 0)) {
+      setError('Choose a date, start time, and duration greater than 0 minutes.');
       return;
     }
 
@@ -106,13 +148,19 @@ export default function QuickAddTaskSheet({
     setError('');
     setForm(prev => ({
       ...prev,
+      intentPreset: template.defaultType === 'FIXED' ? 'FIXED_TIME' : 'NO_DEADLINE',
       taskType: template.defaultType || 'FLEXIBLE',
       title: template.title || '',
       category: template.category || 'Work',
       estimatedDuration: template.defaultEstimatedDurationMinutes || 60,
       fixedDuration: template.defaultFixedDurationMinutes || template.defaultEstimatedDurationMinutes || 60,
-      priority: template.defaultPriority || 3,
+      priority: template.defaultPriority ?? 0,
+      dueDate: '',
+      scheduleToday: false,
+      earliestStartDateTime: '',
+      latestEndDateTime: '',
       addressText: template.addressText || '',
+      addressId: template.addressId > 0 ? template.addressId : null,
     }));
   };
 
@@ -191,97 +239,106 @@ export default function QuickAddTaskSheet({
           />
         </label>
 
-        <div className={styles.typeToggle} aria-label="Task type">
-          <button
-            type="button"
-            className={form.taskType === 'FLEXIBLE' ? styles.typeActive : ''}
-            onClick={() => setField('taskType', 'FLEXIBLE')}
-          >
-            Flexible
-          </button>
-          <button
-            type="button"
-            className={form.taskType === 'FIXED' ? styles.typeActive : ''}
-            onClick={() => setField('taskType', 'FIXED')}
-          >
-            Fixed
-          </button>
-        </div>
+        <fieldset className={styles.intentFieldset}>
+          <legend>What kind of task is this?</legend>
+          <div className={styles.intentGrid}>
+            {INTENTS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={form.intentPreset === value ? styles.intentActive : ''}
+                onClick={() => selectIntent(value)}
+                aria-pressed={form.intentPreset === value}
+              >
+                {label}
+                {value === 'AFTER_TASK' && <small>Coming soon</small>}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
-        <div className={styles.compactGrid}>
+        {form.intentPreset === 'AFTER_TASK' && (
+          <p className={styles.info}>Task dependencies are not persisted or enforced yet. Choose another option to save this task.</p>
+        )}
+
+        {form.intentPreset === 'BY_DATE' && (
           <label className={styles.field}>
-            <span>Category</span>
-            <select value={form.category} onChange={(event) => setField('category', event.target.value)}>
-              {BUILT_IN_CATEGORIES.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+            <span>Due date</span>
+            <input type="date" required value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
           </label>
+        )}
 
-          <label className={styles.field}>
-            <span>Duration</span>
-            <select
-              value={form.taskType === 'FIXED' ? form.fixedDuration : form.estimatedDuration}
-              onChange={(event) => setField(form.taskType === 'FIXED' ? 'fixedDuration' : 'estimatedDuration', Number(event.target.value))}
-            >
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>60 min</option>
-              <option value={90}>90 min</option>
-              <option value={120}>120 min</option>
-            </select>
-          </label>
-
-          <label className={styles.field}>
-            <span>Priority</span>
-            <select value={form.priority} onChange={(event) => setField('priority', Number(event.target.value))}>
-              {PRIORITIES.map(([label, value]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-
-          {form.taskType === 'FLEXIBLE' ? (
+        {form.intentPreset === 'TODAY' && (
+          <div className={styles.compactGrid}>
             <label className={styles.field}>
-              <span>Due date</span>
-              <input type="date" value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
+              <span>Category</span>
+              <select value={form.category} onChange={(event) => setField('category', event.target.value)}>
+                {BUILT_IN_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+              </select>
             </label>
-          ) : (
-            <>
+            <DurationSelect value={form.estimatedDuration} onChange={(value) => setField('estimatedDuration', value)} />
+            <label className={styles.field}>
+              <span>Priority</span>
+              <select value={form.priority} onChange={(event) => setField('priority', Number(event.target.value))}>
+                {PRIORITIES.map(([label, value]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {form.intentPreset === 'FIXED_TIME' && (
+          <div className={styles.compactGrid}>
+            <label className={styles.field}>
+              <span>Date</span>
+              <input type="date" required value={form.fixedDate} onChange={(event) => setField('fixedDate', event.target.value)} />
+            </label>
+            <label className={styles.field}>
+              <span>Start time</span>
+              <input type="time" required value={form.fixedStartTime} onChange={(event) => setField('fixedStartTime', event.target.value)} />
+            </label>
+            <DurationSelect value={form.fixedDuration} onChange={(value) => setField('fixedDuration', value)} />
+          </div>
+        )}
+
+        {form.intentPreset === 'LOCATION' && (
+          <LocationField form={form} setField={setField} />
+        )}
+
+        {form.intentPreset === 'MORE_OPTIONS' && (
+          <div className={styles.moreOptions}>
+            <div className={styles.compactGrid}>
               <label className={styles.field}>
-                <span>Date</span>
-                <input type="date" value={form.fixedDate} onChange={(event) => setField('fixedDate', event.target.value)} />
+                <span>Category</span>
+                <select value={form.category} onChange={(event) => setField('category', event.target.value)}>
+                  {BUILT_IN_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </label>
+              <DurationSelect value={form.estimatedDuration} onChange={(value) => setField('estimatedDuration', value)} />
+              <label className={styles.field}>
+                <span>Priority</span>
+                <select value={form.priority} onChange={(event) => setField('priority', Number(event.target.value))}>
+                  {PRIORITIES.map(([label, value]) => <option key={value} value={value}>{label}</option>)}
+                </select>
               </label>
               <label className={styles.field}>
-                <span>Start time</span>
-                <input type="time" value={form.fixedStartTime} onChange={(event) => setField('fixedStartTime', event.target.value)} />
+                <span>Due date</span>
+                <input type="date" value={form.dueDate} onChange={(event) => setField('dueDate', event.target.value)} />
               </label>
-            </>
-          )}
-        </div>
-
-        <label className={styles.field}>
-          <span>Location</span>
-          <input
-            value={form.addressText}
-            onChange={(event) => setField('addressText', event.target.value)}
-            placeholder="Optional address or place"
-          />
-        </label>
-
-        {form.taskType === 'FLEXIBLE' && (
-          <label className={styles.toggleRow}>
-            <input
-              type="checkbox"
-              checked={form.scheduleToday}
-              onChange={(event) => setField('scheduleToday', event.target.checked)}
-            />
-            <span>
-              Schedule today
-              <small>Only then Quick Add sets an earliest start time and can regenerate today's plan.</small>
-            </span>
-          </label>
+              <label className={styles.field}>
+                <span>Earliest start</span>
+                <input type="datetime-local" value={form.earliestStartDateTime} onChange={(event) => setField('earliestStartDateTime', event.target.value)} />
+              </label>
+              <label className={styles.field}>
+                <span>Latest finish</span>
+                <input type="datetime-local" value={form.latestEndDateTime} onChange={(event) => setField('latestEndDateTime', event.target.value)} />
+              </label>
+            </div>
+            <LocationField form={form} setField={setField} />
+            <label className={styles.toggleRow}>
+              <input type="checkbox" checked={form.scheduleToday} onChange={(event) => setField('scheduleToday', event.target.checked)} />
+              <span>Schedule today<small>Allows the existing save-and-regenerate action.</small></span>
+            </label>
+          </div>
         )}
 
         <section className={styles.templateSection} aria-label="Task templates">
@@ -385,17 +442,17 @@ export default function QuickAddTaskSheet({
 
         <div className={styles.actions}>
           <button type="button" className={styles.secondaryBtn} onClick={openFullEditor}>
-            More options
+            Full editor
           </button>
-          <button type="button" onClick={() => save()} disabled={saving || !payloadPreview.title}>
+          <button type="button" onClick={() => save()} disabled={saving || !canSave}>
             {saving ? 'Saving...' : 'Save task'}
           </button>
           <button
             type="button"
             className={styles.primaryBtn}
             onClick={() => save({ regenerate: true })}
-            disabled={saving || !payloadPreview.title || form.taskType !== 'FLEXIBLE' || !form.scheduleToday}
-            title={form.taskType !== 'FLEXIBLE' || !form.scheduleToday ? 'Turn on Schedule today for a flexible task first.' : undefined}
+            disabled={saving || !canSave || !isFlexible || !form.scheduleToday}
+            title={!isFlexible || !form.scheduleToday ? 'Choose Today or turn on Schedule today in More options first.' : undefined}
           >
             Save and regenerate today
           </button>
@@ -411,4 +468,36 @@ function todayInput(now = new Date()) {
     String(now.getMonth() + 1).padStart(2, '0'),
     String(now.getDate()).padStart(2, '0'),
   ].join('-');
+}
+
+function DurationSelect({ value, onChange }) {
+  return (
+    <label className={styles.field}>
+      <span>Duration</span>
+      <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
+        <option value={15}>15 min</option>
+        <option value={30}>30 min</option>
+        <option value={45}>45 min</option>
+        <option value={60}>60 min</option>
+        <option value={90}>90 min</option>
+        <option value={120}>120 min</option>
+      </select>
+    </label>
+  );
+}
+
+function LocationField({ form, setField }) {
+  return (
+    <label className={styles.field}>
+      <span>Location</span>
+      <input
+        value={form.addressText}
+        onChange={(event) => {
+          setField('addressText', event.target.value);
+          setField('addressId', null);
+        }}
+        placeholder="Optional address or place"
+      />
+    </label>
+  );
 }
